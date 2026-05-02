@@ -1,0 +1,210 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* ── Reset & Base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'EB Garamond', 'Georgia', 'Times New Roman', serif;
+  background: linear-gradient(160deg, #0A1F0A 0%, #0D2B0D 45%, #081808 100%);
+  background-attachment: fixed;
+  color: #EDE8DC;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(10, 31, 10, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 196, 160, 0.25);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 196, 160, 0.45);
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(212, 196, 160, 0.25);
+  color: #EDE8DC;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'EB Garamond', 'Georgia', serif;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #EDE8DC;
+}
+
+p {
+  line-height: 1.6;
+}
+
+/* ── Form Elements ── */
+input[type="number"],
+input[type="text"],
+input[type="date"],
+select,
+textarea {
+  font-family: 'EB Garamond', 'Georgia', 'Times New Roman', serif;
+  font-size: 13px;
+  color: #EDE8DC;
+  background: rgba(232, 220, 200, 0.04);
+  border: 1px solid rgba(232, 220, 200, 0.14);
+  border-radius: 10px;
+  padding: 9px 12px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus,
+input[type="date"]:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(212, 196, 160, 0.38);
+  background: rgba(232, 220, 200, 0.07);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 0.3;
+  filter: invert(1);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(0.3);
+  cursor: pointer;
+  opacity: 0.6;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+select option {
+  background: #0D2B0D;
+  color: #EDE8DC;
+  font-family: 'EB Garamond', 'Georgia', serif;
+}
+
+input::placeholder {
+  color: rgba(237, 232, 220, 0.28);
+}
+
+button {
+  font-family: 'EB Garamond', 'Georgia', 'Times New Roman', serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* ── Recharts Overrides ── */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+.recharts-default-tooltip {
+  font-family: 'EB Garamond', 'Georgia', serif !important;
+  font-size: 12px !important;
+  background: rgba(10, 31, 10, 0.97) !important;
+  border: 1px solid rgba(232, 220, 200, 0.15) !important;
+  border-radius: 10px !important;
+}
+
+.recharts-cartesian-axis-tick text {
+  font-family: 'EB Garamond', 'Georgia', serif !important;
+  fill: rgba(237, 232, 220, 0.4) !important;
+  font-size: 11px !important;
+}
+
+/* ── Glass card hover effect ── */
+.glass-hover {
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.glass-hover:hover {
+  border-color: rgba(232, 220, 200, 0.2) !important;
+  background: rgba(232, 220, 200, 0.07) !important;
+}
+
+/* ── Progress bar animation ── */
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: var(--target-width); }
+}
+
+/* ── Fade in on load ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+/* ── Ambient glow blobs ── */
+.ambient-blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+/* ── Noise texture overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 150px 150px;
+}
+
+/* ── Mobile responsiveness ── */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
