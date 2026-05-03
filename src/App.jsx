@@ -20,6 +20,7 @@ const STD_COLORS = {
 };
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const CUSTOM_PALETTE = ["#C47A6A","#8B7FD4","#7BAF8E","#C8A96E","#6B9BBF","#B87FAE","#7FAF9A","#D4956A","#9BAF6E","#AF7FA4"];
+const CURRENCIES = ["₱","$","€","£","¥","₩","₹","฿","₫","Rp"];
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function todayStr() { return new Date().toISOString().split("T")[0]; }
@@ -40,40 +41,212 @@ function displayCategory(cat) {
   if (cat.startsWith("Other:")) return cat.slice(6).trim();
   return cat;
 }
+function getInitials(name) {
+  return name.slice(0, 2).toUpperCase();
+}
+function hashColor(str) {
+  const palette = ["#C8A96E","#8B7FD4","#7BAF8E","#C47A6A","#6B9BBF","#B87FAE","#D4B878","#D4956A"];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
+}
 
 const dark = {
   bg: "linear-gradient(160deg, #0f0f1a 0%, #1a1225 45%, #0a0a14 100%)",
-  glass: "rgba(200,190,255,0.04)",
-  glassBorder: "rgba(200,190,255,0.10)",
+  glass: "rgba(200,190,255,0.04)", glassBorder: "rgba(200,190,255,0.10)",
   text: "#EDE8DC", textSub: "rgba(237,232,220,0.6)", textMuted: "rgba(237,232,220,0.32)",
   accent: "#C8A96E", accentSoft: "rgba(200,169,110,0.12)",
   red: "#C47A6A", green: "#7BAF8E", yellow: "#D4B878", indigo: "#8B7FD4", cream: "#EDE8DC",
   inputBg: "rgba(200,190,255,0.04)", navBg: "rgba(10,8,20,0.88)", tooltipBg: "rgba(10,8,20,0.97)",
+  cardHover: "rgba(200,190,255,0.07)",
 };
 const light = {
   bg: "linear-gradient(160deg, #f5f0e8 0%, #ede5d5 45%, #f8f3ea 100%)",
-  glass: "rgba(120,90,40,0.05)",
-  glassBorder: "rgba(120,90,40,0.14)",
+  glass: "rgba(120,90,40,0.05)", glassBorder: "rgba(120,90,40,0.14)",
   text: "#2C2416", textSub: "rgba(44,36,22,0.65)", textMuted: "rgba(44,36,22,0.38)",
   accent: "#8B5E20", accentSoft: "rgba(139,94,32,0.1)",
   red: "#B85042", green: "#4A8C62", yellow: "#9A7A20", indigo: "#5B4FB5", cream: "#2C2416",
   inputBg: "rgba(255,250,240,0.85)", navBg: "rgba(240,230,210,0.93)", tooltipBg: "rgba(245,240,232,0.98)",
+  cardHover: "rgba(120,90,40,0.08)",
 };
 
+// ─────────────────────────────────────────────
+// PROFILE SELECTOR SCREEN
+// ─────────────────────────────────────────────
+function ProfileScreen({ onSelect, isDark, setIsDark }) {
+  const isMobile = useMobile();
+  const G = isDark ? dark : light;
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newCurrency, setNewCurrency] = useState("₱");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from("profiles").select("*").order("created_at", { ascending: true })
+      .then(({ data }) => { if (data) setProfiles(data); setLoading(false); });
+  }, []);
+
+  async function createProfile() {
+    if (!newUsername.trim()) return setError("Please enter a username.");
+    const username = newUsername.trim(); // case-sensitive, keep as-is
+    const exists = profiles.some(p => p.username === username);
+    if (exists) return setError(`"${username}" already exists. Usernames are case-sensitive.`);
+    setSaving(true);
+    const { error: err } = await supabase.from("profiles").insert({ username, currency: newCurrency });
+    if (err) { setError("Error: " + err.message); setSaving(false); return; }
+    const newProfile = { username, currency: newCurrency };
+    setProfiles(s => [...s, newProfile]);
+    setCreating(false);
+    setNewUsername(""); setNewCurrency("₱"); setError("");
+    setSaving(false);
+    onSelect(newProfile);
+  }
+
+  const glassStyle = (extra = {}) => ({
+    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${G.glassBorder}`, borderRadius: 16, ...extra,
+  });
+
+  const inputSt = {
+    width: "100%", padding: "11px 14px", borderRadius: 11,
+    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
+    color: G.text, fontSize: 15, outline: "none",
+    fontFamily: "'EB Garamond', Georgia, serif",
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "24px 16px" : "40px 24px", boxSizing: "border-box", transition: "background 0.3s, color 0.3s" }}>
+      {/* Blobs */}
+      <div style={{ position: "fixed", top: -80, left: -60, width: 300, height: 300, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.08)" : "rgba(139,94,32,0.06)", filter: "blur(90px)", pointerEvents: "none" }} />
+      <div style={{ position: "fixed", bottom: -60, right: -40, width: 260, height: 260, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.07)" : "rgba(200,169,110,0.09)", filter: "blur(80px)", pointerEvents: "none" }} />
+
+      {/* Theme toggle top-right */}
+      <div style={{ position: "fixed", top: 20, right: 20 }}>
+        <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+      </div>
+
+      <div style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, position: "relative", zIndex: 1 }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Budget Tracker</div>
+          <div style={{ fontSize: isMobile ? 28 : 34, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 8 }}>Who's budgeting?</div>
+          <div style={{ fontSize: 14, color: G.textMuted }}>Select a profile to continue</div>
+        </div>
+
+        {/* Profile cards */}
+        {loading ? (
+          <div style={{ textAlign: "center", color: G.textMuted, padding: "32px 0" }}>Loading profiles...</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+            {profiles.map(p => {
+              const avatarColor = hashColor(p.username);
+              return (
+                <button key={p.username} onClick={() => onSelect(p)} style={{
+                  display: "flex", alignItems: "center", gap: 14, padding: "16px 18px",
+                  background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                  border: `1px solid ${G.glassBorder}`, borderRadius: 14,
+                  color: G.text, cursor: "pointer", fontFamily: "inherit",
+                  textAlign: "left", width: "100%", transition: "all 0.18s",
+                }}>
+                  {/* Avatar */}
+                  <div style={{ width: 46, height: 46, borderRadius: 13, background: `${avatarColor}25`, border: `2px solid ${avatarColor}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
+                    {getInitials(p.username)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{p.username}</div>
+                    <div style={{ fontSize: 12, color: G.textMuted, marginTop: 2 }}>Currency: {p.currency}</div>
+                  </div>
+                  <div style={{ fontSize: 18, color: G.textMuted }}>→</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Create new profile */}
+        {!creating ? (
+          <button onClick={() => setCreating(true)} style={{
+            width: "100%", padding: "14px", borderRadius: 14,
+            background: G.accentSoft, border: `1px solid ${G.accent}40`,
+            color: G.accent, fontSize: 15, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>+</span> New Profile
+          </button>
+        ) : (
+          <div style={glassStyle({ padding: "22px" })}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: G.cream }}>Create Profile</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Username</label>
+                <input
+                  style={inputSt}
+                  type="text"
+                  placeholder="e.g. Kieffer"
+                  value={newUsername}
+                  onChange={e => { setNewUsername(e.target.value); setError(""); }}
+                  autoFocus
+                  onKeyDown={e => e.key === "Enter" && createProfile()}
+                />
+                <div style={{ fontSize: 11, color: G.textMuted, marginTop: 5 }}>⚠ Case-sensitive — "Kieffer" and "kieffer" are different profiles</div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Currency</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {CURRENCIES.map(c => (
+                    <button key={c} onClick={() => setNewCurrency(c)} style={{
+                      padding: "7px 14px", borderRadius: 9, fontSize: 14, fontWeight: 600,
+                      border: `1px solid ${newCurrency === c ? G.accent : G.glassBorder}`,
+                      background: newCurrency === c ? G.accentSoft : "transparent",
+                      color: newCurrency === c ? G.accent : G.textMuted,
+                      cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                    }}>{c}</button>
+                  ))}
+                </div>
+              </div>
+
+              {error && <div style={{ fontSize: 12, color: G.red, padding: "8px 12px", background: `${G.red}12`, borderRadius: 8 }}>{error}</div>}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button onClick={() => { setCreating(false); setNewUsername(""); setError(""); }} style={{ flex: 1, padding: "11px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button onClick={createProfile} disabled={saving} style={{ flex: 2, padding: "11px", borderRadius: 11, background: G.accentSoft, border: `1px solid ${G.accent}50`, color: G.accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  {saving ? "Creating..." : "Create Profile"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MAIN APP
+// ─────────────────────────────────────────────
 export default function App() {
   const isMobile = useMobile();
   const [isDark, setIsDark] = useState(true);
+  const [activeProfile, setActiveProfile] = useState(null); // { username, currency }
   const G = isDark ? dark : light;
 
+  // All data states
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
   const [wallet, setWallet] = useState([]);
   const [budgets, setBudgets] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const [tab, setTab] = useState("overview");
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
 
+  // Forms
   const [incAmount, setIncAmount] = useState("");
   const [incDate, setIncDate] = useState(todayStr());
   const [incNote, setIncNote] = useState("");
@@ -99,18 +272,23 @@ export default function App() {
   const [budgetCustomName, setBudgetCustomName] = useState("");
   const [budgetAmt, setBudgetAmt] = useState("");
 
+  const CUR = activeProfile?.currency || "₱";
+
   useEffect(() => {
     document.documentElement.classList.toggle("light", !isDark);
   }, [isDark]);
 
+  // Load data whenever profile changes
   useEffect(() => {
+    if (!activeProfile) return;
     async function loadAll() {
       setLoading(true);
+      const p = activeProfile.username;
       const [txRes, goalsRes, walletRes, budgetsRes] = await Promise.all([
-        supabase.from("transactions").select("*").order("date", { ascending: false }),
-        supabase.from("goals").select("*").order("created_at", { ascending: true }),
-        supabase.from("wallet").select("*").order("date", { ascending: false }),
-        supabase.from("budgets").select("*"),
+        supabase.from("transactions").select("*").eq("profile", p).order("date", { ascending: false }),
+        supabase.from("goals").select("*").eq("profile", p).order("created_at", { ascending: true }),
+        supabase.from("wallet").select("*").eq("profile", p).order("date", { ascending: false }),
+        supabase.from("budgets").select("*").eq("profile", p),
       ]);
       if (txRes.data) setTransactions(txRes.data);
       if (goalsRes.data) setGoals(goalsRes.data);
@@ -125,9 +303,17 @@ export default function App() {
       setLoading(false);
     }
     loadAll();
-  }, []);
+    setTab("overview");
+    setSelectedMonth(currentMonthKey());
+  }, [activeProfile]);
 
-  const customCats = Object.entries(budgets).filter(([, v]) => v.isCustom).map(([k, v]) => ({ name: k, ...v }));
+  function switchProfile() {
+    setActiveProfile(null);
+    setTransactions([]); setGoals([]); setWallet([]); setBudgets({});
+  }
+
+  // ── Derived ──
+  const customCats = Object.entries(budgets).filter(([,v]) => v.isCustom).map(([k,v]) => ({ name: k, ...v }));
   const allExpenseCategories = [...STD_CATEGORIES, ...customCats.map(c => c.name), "Other"];
 
   const allMonths = () => {
@@ -189,9 +375,12 @@ export default function App() {
 
   const walletBalance = wallet.reduce((s, w) => w.type === "add" ? s + w.amount : s - w.amount, 0);
 
+  // ── CRUD ──
+  const P = activeProfile?.username;
+
   async function addIncome() {
     if (!incAmount || !incDate) return alert("Enter amount and date.");
-    const tx = { id: uid(), type: "income", amount: parseFloat(incAmount), date: incDate, description: incNote || "Allowance", category: "Income" };
+    const tx = { id: uid(), type: "income", amount: parseFloat(incAmount), date: incDate, description: incNote || "Allowance", category: "Income", profile: P };
     const { error } = await supabase.from("transactions").insert(tx);
     if (error) return alert("Error: " + error.message);
     setTransactions(s => [tx, ...s]);
@@ -206,7 +395,7 @@ export default function App() {
       const matchedCustom = customCats.find(c => c.name.toLowerCase() === expOtherLabel.trim().toLowerCase());
       category = matchedCustom ? matchedCustom.name : `Other:${expOtherLabel.trim()}`;
     }
-    const tx = { id: uid(), type: "expense", amount: parseFloat(expAmount), date: expDate, description: expDesc || displayCategory(category), category };
+    const tx = { id: uid(), type: "expense", amount: parseFloat(expAmount), date: expDate, description: expDesc || displayCategory(category), category, profile: P };
     const { error } = await supabase.from("transactions").insert(tx);
     if (error) return alert("Error: " + error.message);
     setTransactions(s => [tx, ...s]);
@@ -223,7 +412,7 @@ export default function App() {
       catKey = budgetCustomName.trim(); isCustom = true;
       color = budgets[catKey]?.color || CUSTOM_PALETTE[customCats.length % CUSTOM_PALETTE.length];
     }
-    const { error } = await supabase.from("budgets").upsert({ category: catKey, amount: parseFloat(budgetAmt), color, is_custom: isCustom });
+    const { error } = await supabase.from("budgets").upsert({ category: catKey, amount: parseFloat(budgetAmt), color, is_custom: isCustom, profile: P });
     if (error) return alert("Error: " + error.message);
     setBudgets(s => ({ ...s, [catKey]: { amount: parseFloat(budgetAmt), color, isCustom } }));
     setBudgetAmt("");
@@ -231,14 +420,14 @@ export default function App() {
   }
 
   async function deleteBudget(catKey) {
-    const { error } = await supabase.from("budgets").delete().eq("category", catKey);
+    const { error } = await supabase.from("budgets").delete().eq("category", catKey).eq("profile", P);
     if (error) return alert("Error: " + error.message);
     setBudgets(s => { const n = { ...s }; delete n[catKey]; return n; });
   }
 
   async function addGoal() {
     if (!goalName || !goalTarget) return alert("Enter goal name and target.");
-    const g = { id: uid(), name: goalName, target: parseFloat(goalTarget), saved: 0 };
+    const g = { id: uid(), name: goalName, target: parseFloat(goalTarget), saved: 0, profile: P };
     const { error } = await supabase.from("goals").insert(g);
     if (error) return alert("Error: " + error.message);
     setGoals(s => [...s, g]);
@@ -257,87 +446,82 @@ export default function App() {
 
   async function addWallet() {
     if (!walletAmt || !walletDate) return alert("Enter amount and date.");
-    const entry = { id: uid(), type: walletType, amount: parseFloat(walletAmt), description: walletDesc || (walletType === "add" ? "Added money" : "Spent money"), date: walletDate };
+    const entry = { id: uid(), type: walletType, amount: parseFloat(walletAmt), description: walletDesc || (walletType === "add" ? "Added money" : "Spent money"), date: walletDate, profile: P };
     const { error } = await supabase.from("wallet").insert(entry);
     if (error) return alert("Error: " + error.message);
     setWallet(s => [entry, ...s]);
     setWalletAmt(""); setWalletDesc("");
   }
 
-  async function deleteTx(id) {
-    await supabase.from("transactions").delete().eq("id", id);
-    setTransactions(s => s.filter(t => t.id !== id));
-  }
-  async function deleteGoal(id) {
-    await supabase.from("goals").delete().eq("id", id);
-    setGoals(s => s.filter(g => g.id !== id));
-  }
-  async function deleteWallet(id) {
-    await supabase.from("wallet").delete().eq("id", id);
-    setWallet(s => s.filter(w => w.id !== id));
-  }
+  async function deleteTx(id) { await supabase.from("transactions").delete().eq("id", id); setTransactions(s => s.filter(t => t.id !== id)); }
+  async function deleteGoal(id) { await supabase.from("goals").delete().eq("id", id); setGoals(s => s.filter(g => g.id !== id)); }
+  async function deleteWallet(id) { await supabase.from("wallet").delete().eq("id", id); setWallet(s => s.filter(w => w.id !== id)); }
 
   // ── Style helpers ──
   const glassStyle = (extra = {}) => ({
-    background: G.glass,
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    border: `1px solid ${G.glassBorder}`,
-    borderRadius: isMobile ? 14 : 16,
-    ...extra,
+    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${G.glassBorder}`, borderRadius: isMobile ? 14 : 16, ...extra,
   });
 
   const inputSt = {
-    width: "100%",
-    padding: isMobile ? "10px 12px" : "9px 12px",
-    borderRadius: 10,
-    border: `1px solid ${G.glassBorder}`,
-    background: G.inputBg,
-    color: G.text,
-    fontSize: isMobile ? 14 : 13,
-    outline: "none",
+    width: "100%", padding: isMobile ? "10px 12px" : "9px 12px", borderRadius: 10,
+    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
+    color: G.text, fontSize: isMobile ? 14 : 13, outline: "none",
     fontFamily: "'EB Garamond', Georgia, serif",
   };
 
-  // Responsive grid: 2 cols on desktop, 1 on mobile
-  const grid2 = {
-    display: "grid",
-    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-    gap: isMobile ? 14 : 20,
-    width: "100%",
-  };
-
+  const grid2 = { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20, width: "100%" };
   const tabs = ["overview", "add", "expenses", "goals", "wallet"];
   const tabIcons = { overview: "⌂", add: "+", expenses: "≡", goals: "◎", wallet: "◇" };
 
+  // ── Show profile selector if no active profile ──
+  if (!activeProfile) {
+    return <ProfileScreen onSelect={setActiveProfile} isDark={isDark} setIsDark={setIsDark} />;
+  }
+
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: G.textMuted, fontSize: 16, letterSpacing: 1 }}>
-      Loading your budget...
+    <div style={{ minHeight: "100vh", background: G.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: G.textMuted, fontSize: 16, letterSpacing: 1, gap: 12 }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${G.glassBorder}`, borderTop: `2px solid ${G.accent}`, animation: "spin 0.8s linear infinite" }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      Loading {activeProfile.username}'s budget...
     </div>
   );
 
+  const avatarColor = hashColor(activeProfile.username);
+
   return (
     <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, overflowX: "hidden", transition: "background 0.3s, color 0.3s" }}>
-      {/* Ambient blobs */}
       <div style={{ position: "fixed", top: -100, left: -60, width: isMobile ? 260 : 400, height: isMobile ? 260 : 400, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.07)" : "rgba(139,94,32,0.05)", filter: "blur(100px)", pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", bottom: -80, right: -50, width: isMobile ? 220 : 360, height: isMobile ? 220 : 360, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.06)" : "rgba(200,169,110,0.08)", filter: "blur(90px)", pointerEvents: "none", zIndex: 0 }} />
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", minHeight: "100vh", padding: isMobile ? "18px 16px 80px" : "24px 32px 90px", boxSizing: "border-box" }}>
 
         {/* ── Header ── */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: isMobile ? 20 : 28, flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 9, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 2 }}>Budget Tracker</div>
-            <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, letterSpacing: -0.5, color: G.cream }}>{monthLabel(selectedMonth)}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isMobile ? 20 : 28, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Profile avatar + switch button */}
+            <button onClick={switchProfile} title="Switch Profile" style={{
+              display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 7px",
+              background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 28,
+              cursor: "pointer", color: G.text, fontFamily: "inherit", transition: "all 0.18s",
+            }}>
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${avatarColor}25`, border: `2px solid ${avatarColor}60`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
+                {getInitials(activeProfile.username)}
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{activeProfile.username}</div>
+                <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 0.5 }}>switch ↗</div>
+              </div>
+            </button>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 1 }}>Budget Tracker</div>
+              <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, letterSpacing: -0.5, color: G.cream }}>{monthLabel(selectedMonth)}</div>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 12 }}>{isDark ? "🌙" : "☀️"}</span>
-              <button
-                className="theme-toggle"
-                onClick={() => setIsDark(d => !d)}
-                style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }}
-              />
+              <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
             </div>
             <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ ...inputSt, width: "auto", fontSize: 11, padding: "6px 10px", cursor: "pointer" }}>
               {allMonths().map(m => <option key={m} value={m} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{monthLabel(m)}</option>)}
@@ -348,20 +532,19 @@ export default function App() {
         {/* ── OVERVIEW ── */}
         {tab === "overview" && (
           <div style={grid2}>
-            {/* Balance card */}
             <div style={{ ...glassStyle({ padding: isMobile ? "22px 18px" : "28px 26px", position: "relative", overflow: "hidden" }) }}>
               <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: `${G.accent}0A`, filter: "blur(40px)" }} />
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Remaining Balance</div>
-              <div style={{ fontSize: isMobile ? 38 : 52, fontWeight: 700, letterSpacing: -2, color: balColor, marginBottom: 18 }}>₱{balance.toLocaleString()}</div>
+              <div style={{ fontSize: isMobile ? 36 : 50, fontWeight: 700, letterSpacing: -2, color: balColor, marginBottom: 18 }}>{CUR}{balance.toLocaleString()}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 {[
-                  { label: "Allowance", val: `₱${income.toLocaleString()}`, color: G.green },
-                  { label: "Spent", val: `₱${expenses.toLocaleString()}`, color: G.red },
+                  { label: "Allowance", val: `${CUR}${income.toLocaleString()}`, color: G.green },
+                  { label: "Spent", val: `${CUR}${expenses.toLocaleString()}`, color: G.red },
                   { label: "Used", val: `${pct}%`, color: G.yellow },
                 ].map(m => (
-                  <div key={m.label} style={{ background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 10, padding: isMobile ? "10px 10px" : "12px 14px" }}>
+                  <div key={m.label} style={{ background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 10, padding: "10px 12px" }}>
                     <div style={{ fontSize: 9, color: G.textMuted, marginBottom: 3 }}>{m.label}</div>
-                    <div style={{ fontSize: isMobile ? 14 : 18, fontWeight: 600, color: m.color }}>{m.val}</div>
+                    <div style={{ fontSize: isMobile ? 13 : 16, fontWeight: 600, color: m.color }}>{m.val}</div>
                   </div>
                 ))}
               </div>
@@ -372,41 +555,36 @@ export default function App() {
               </div>
             </div>
 
-            {/* Wallet */}
             <div style={{ ...glassStyle({ padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }) }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 11, background: G.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, color: G.accent }}>◇</div>
                 <div>
                   <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase" }}>Wallet</div>
-                  <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 600 }}>₱{walletBalance.toLocaleString()}</div>
+                  <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 600 }}>{CUR}{walletBalance.toLocaleString()}</div>
                 </div>
               </div>
               <button onClick={() => setTab("wallet")} style={{ background: G.accentSoft, border: `1px solid ${G.glassBorder}`, color: G.accent, fontSize: 12, padding: "6px 14px", borderRadius: 18, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>View →</button>
             </div>
 
-            {/* Category breakdown */}
-            <div style={{ ...glassStyle({ padding: isMobile ? "16px" : "20px 22px" }), ...(isMobile ? {} : { gridRow: "span 1" }) }}>
+            <div style={glassStyle({ padding: isMobile ? "16px" : "20px 22px" })}>
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Category Breakdown</div>
               {catBudgetData().length === 0 && (
                 <div style={{ textAlign: "center", color: G.textMuted, fontSize: 13, padding: "20px 0" }}>
-                  No data yet —{" "}
-                  <span style={{ color: G.accent, cursor: "pointer", textDecoration: "underline" }} onClick={() => setTab("add")}>add a transaction</span>
+                  No data yet — <span style={{ color: G.accent, cursor: "pointer", textDecoration: "underline" }} onClick={() => setTab("add")}>add a transaction</span>
                 </div>
               )}
               {catBudgetData().map(({ cat, displayCat, budget, spent, remaining, p, color }) => {
                 const over = budget > 0 && spent > budget;
                 return (
-                  <div key={cat} style={{ marginBottom: 15 }}>
+                  <div key={cat} style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                         <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                        <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 500 }}>{displayCat}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{displayCat}</span>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 12, color: over ? G.red : G.textSub }}>
-                          ₱{spent.toLocaleString()}{budget > 0 && <span style={{ color: G.textMuted }}> / ₱{budget.toLocaleString()}</span>}
-                        </div>
-                        {budget > 0 && <div style={{ fontSize: 10, color: over ? G.red : G.green, fontWeight: 600 }}>{over ? `−₱${Math.abs(remaining).toLocaleString()} over` : `₱${remaining.toLocaleString()} left`}</div>}
+                        <div style={{ fontSize: 12, color: over ? G.red : G.textSub }}>{CUR}{spent.toLocaleString()}{budget > 0 && <span style={{ color: G.textMuted }}> / {CUR}{budget.toLocaleString()}</span>}</div>
+                        {budget > 0 && <div style={{ fontSize: 10, color: over ? G.red : G.green, fontWeight: 600 }}>{over ? `−${CUR}${Math.abs(remaining).toLocaleString()} over` : `${CUR}${remaining.toLocaleString()} left`}</div>}
                       </div>
                     </div>
                     {budget > 0 && (
@@ -419,19 +597,18 @@ export default function App() {
               })}
             </div>
 
-            {/* Chart */}
             <div style={glassStyle({ padding: isMobile ? "16px" : "20px 22px" })}>
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>6-Month History</div>
-              <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
+              <ResponsiveContainer width="100%" height={isMobile ? 150 : 190}>
                 <BarChart data={chartData()} barGap={3} barCategoryGap="30%">
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: G.textMuted }} axisLine={false} tickLine={false} />
                   <YAxis hide />
-                  <Tooltip contentStyle={{ background: G.tooltipBg, border: `1px solid ${G.glassBorder}`, borderRadius: 10, fontSize: 12, color: G.text }} formatter={v => `₱${v.toLocaleString()}`} cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)" }} />
+                  <Tooltip contentStyle={{ background: G.tooltipBg, border: `1px solid ${G.glassBorder}`, borderRadius: 10, fontSize: 12, color: G.text }} formatter={v => `${CUR}${v.toLocaleString()}`} cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)" }} />
                   <Bar dataKey="Income" fill={`${G.green}AA`} radius={[4,4,0,0]} />
                   <Bar dataKey="Expenses" fill={`${G.red}99`} radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
-              <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
                 {[[`${G.green}AA`,"Income"],[`${G.red}99`,"Expenses"]].map(([c,l]) => (
                   <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
@@ -441,7 +618,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Recent */}
             <div style={{ ...glassStyle({ padding: isMobile ? "16px" : "20px 22px" }), ...(isMobile ? {} : { gridColumn: "1 / -1" }) }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Recent Transactions</div>
@@ -460,7 +636,7 @@ export default function App() {
                         <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description}</div>
                         <div style={{ fontSize: 10, color: G.textMuted }}>{isInc ? "Income" : displayCategory(t.category)} · {(d.getMonth()+1)}/{d.getDate()}</div>
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: isInc ? G.green : G.red }}>{isInc ? "+" : "-"}₱{t.amount.toLocaleString()}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: isInc ? G.green : G.red, whiteSpace: "nowrap" }}>{isInc ? "+" : "-"}{CUR}{t.amount.toLocaleString()}</div>
                     </div>
                   );
                 })}
@@ -475,19 +651,17 @@ export default function App() {
             <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
               <SectionTitle G={G} icon="↑" iconBg={`${G.green}20`} iconColor={G.green} title="Add Income" />
               <MRow isMobile={isMobile}>
-                <Field G={G} label="Amount (₱)"><input style={inputSt} type="number" placeholder="500" value={incAmount} onChange={e => setIncAmount(e.target.value)} /></Field>
+                <Field G={G} label={`Amount (${CUR})`}><input style={inputSt} type="number" placeholder="500" value={incAmount} onChange={e => setIncAmount(e.target.value)} /></Field>
                 <Field G={G} label="Date"><input style={inputSt} type="date" value={incDate} onChange={e => setIncDate(e.target.value)} /></Field>
               </MRow>
-              <div style={{ marginTop: 12 }}>
-                <Field G={G} label="Note"><input style={inputSt} type="text" placeholder="e.g. Weekly allowance" value={incNote} onChange={e => setIncNote(e.target.value)} /></Field>
-              </div>
+              <div style={{ marginTop: 12 }}><Field G={G} label="Note"><input style={inputSt} type="text" placeholder="e.g. Weekly allowance" value={incNote} onChange={e => setIncNote(e.target.value)} /></Field></div>
               <Btn G={G} onClick={addIncome} style={{ marginTop: 16 }}>Add income</Btn>
             </div>
 
             <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
               <SectionTitle G={G} icon="↓" iconBg={`${G.red}20`} iconColor={G.red} title="Add Expense" />
               <MRow isMobile={isMobile}>
-                <Field G={G} label="Amount (₱)"><input style={inputSt} type="number" placeholder="80" value={expAmount} onChange={e => setExpAmount(e.target.value)} /></Field>
+                <Field G={G} label={`Amount (${CUR})`}><input style={inputSt} type="number" placeholder="80" value={expAmount} onChange={e => setExpAmount(e.target.value)} /></Field>
                 <Field G={G} label="Category">
                   <select style={inputSt} value={expCat} onChange={e => { setExpCat(e.target.value); setExpOtherLabel(""); }}>
                     {allExpenseCategories.map(c => <option key={c} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{c}</option>)}
@@ -527,9 +701,7 @@ export default function App() {
                     : <input style={inputSt} type="text" placeholder="e.g. Bills, Rent, Gym..." value={budgetCustomName} onChange={e => setBudgetCustomName(e.target.value)} />
                   }
                 </Field>
-                <Field G={G} label="Monthly limit (₱)">
-                  <input style={inputSt} type="number" placeholder="500" value={budgetAmt} onChange={e => setBudgetAmt(e.target.value)} />
-                </Field>
+                <Field G={G} label={`Monthly limit (${CUR})`}><input style={inputSt} type="number" placeholder="500" value={budgetAmt} onChange={e => setBudgetAmt(e.target.value)} /></Field>
               </MRow>
               <Btn G={G} onClick={saveBudget} style={{ marginTop: 16 }}>Save budget</Btn>
               {Object.keys(budgets).length > 0 && (
@@ -541,10 +713,10 @@ export default function App() {
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ width: 7, height: 7, borderRadius: "50%", background: b.color || G.accent }} />
                           <span style={{ fontSize: 13, color: G.textSub }}>{cat}</span>
-                          {b.isCustom && <span style={{ fontSize: 10, color: G.indigo, background: `${G.indigo}18`, borderRadius: 4, padding: "1px 6px" }}>custom</span>}
+                          {b.isCustom && <span style={{ fontSize: 9, color: G.indigo, background: `${G.indigo}18`, borderRadius: 4, padding: "1px 6px" }}>custom</span>}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontSize: 13, color: G.accent, fontWeight: 600 }}>₱{b.amount.toLocaleString()}</span>
+                          <span style={{ fontSize: 13, color: G.accent, fontWeight: 600 }}>{CUR}{b.amount.toLocaleString()}</span>
                           <button onClick={() => deleteBudget(cat)} style={{ background: `${G.red}18`, border: `1px solid ${G.red}40`, color: G.red, borderRadius: 6, width: 24, height: 24, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                         </div>
                       </div>
@@ -558,7 +730,7 @@ export default function App() {
               <SectionTitle G={G} icon="◎" iconBg={`${G.yellow}20`} iconColor={G.yellow} title="New Savings Goal" />
               <MRow isMobile={isMobile}>
                 <Field G={G} label="Goal name"><input style={inputSt} type="text" placeholder="e.g. New shoes" value={goalName} onChange={e => setGoalName(e.target.value)} /></Field>
-                <Field G={G} label="Target (₱)"><input style={inputSt} type="number" placeholder="1500" value={goalTarget} onChange={e => setGoalTarget(e.target.value)} /></Field>
+                <Field G={G} label={`Target (${CUR})`}><input style={inputSt} type="number" placeholder="1500" value={goalTarget} onChange={e => setGoalTarget(e.target.value)} /></Field>
               </MRow>
               <Btn G={G} onClick={addGoal} style={{ marginTop: 16 }}>Create goal</Btn>
             </div>
@@ -582,7 +754,7 @@ export default function App() {
                       <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description}</div>
                       <div style={{ fontSize: 10, color: G.textMuted }}>{isInc ? "Income" : displayCategory(t.category)} · {(d.getMonth()+1)}/{d.getDate()}</div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isInc ? G.green : G.red, whiteSpace: "nowrap" }}>{isInc ? "+" : "-"}₱{t.amount.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isInc ? G.green : G.red, whiteSpace: "nowrap" }}>{isInc ? "+" : "-"}{CUR}{t.amount.toLocaleString()}</div>
                     <button onClick={() => deleteTx(t.id)} style={{ background: `${G.red}18`, border: `1px solid ${G.red}40`, color: G.red, borderRadius: 7, width: 28, height: 28, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
                   </div>
                 );
@@ -613,7 +785,7 @@ export default function App() {
                       <div style={{ height: 4, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", borderRadius: 3, marginBottom: 7 }}>
                         <div style={{ height: 4, width: `${p}%`, borderRadius: 3, background: `linear-gradient(90deg, ${color}88, ${color})`, transition: "width 0.5s ease" }} />
                       </div>
-                      <div style={{ fontSize: 11, color: G.textMuted }}>₱{g.saved.toLocaleString()} · ₱{Math.max(0, g.target - g.saved).toLocaleString()} to go</div>
+                      <div style={{ fontSize: 11, color: G.textMuted }}>{CUR}{g.saved.toLocaleString()} · {CUR}{Math.max(0, g.target - g.saved).toLocaleString()} to go · Target {CUR}{g.target.toLocaleString()}</div>
                     </div>
                   );
                 })}
@@ -623,13 +795,8 @@ export default function App() {
               <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Add money to a goal</div>
                 <MRow isMobile={isMobile}>
-                  <Field G={G} label="Goal">
-                    <select style={inputSt} value={goalAddId} onChange={e => setGoalAddId(e.target.value)}>
-                      <option value="" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>Select goal</option>
-                      {goals.map(g => <option key={g.id} value={g.id} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{g.name}</option>)}
-                    </select>
-                  </Field>
-                  <Field G={G} label="Amount (₱)"><input style={inputSt} type="number" placeholder="200" value={goalAddAmt} onChange={e => setGoalAddAmt(e.target.value)} /></Field>
+                  <Field G={G} label="Goal"><select style={inputSt} value={goalAddId} onChange={e => setGoalAddId(e.target.value)}><option value="" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>Select goal</option>{goals.map(g => <option key={g.id} value={g.id} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{g.name}</option>)}</select></Field>
+                  <Field G={G} label={`Amount (${CUR})`}><input style={inputSt} type="number" placeholder="200" value={goalAddAmt} onChange={e => setGoalAddAmt(e.target.value)} /></Field>
                 </MRow>
                 <Btn G={G} onClick={addToGoal} style={{ marginTop: 14 }}>Add to goal</Btn>
               </div>
@@ -638,7 +805,7 @@ export default function App() {
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>New goal</div>
               <MRow isMobile={isMobile}>
                 <Field G={G} label="Goal name"><input style={inputSt} type="text" placeholder="e.g. New shoes" value={goalName} onChange={e => setGoalName(e.target.value)} /></Field>
-                <Field G={G} label="Target (₱)"><input style={inputSt} type="number" placeholder="1500" value={goalTarget} onChange={e => setGoalTarget(e.target.value)} /></Field>
+                <Field G={G} label={`Target (${CUR})`}><input style={inputSt} type="number" placeholder="1500" value={goalTarget} onChange={e => setGoalTarget(e.target.value)} /></Field>
               </MRow>
               <Btn G={G} onClick={addGoal} style={{ marginTop: 14 }}>Create goal</Btn>
             </div>
@@ -651,19 +818,14 @@ export default function App() {
             <div style={{ ...glassStyle({ padding: isMobile ? "22px 18px" : "28px 26px", position: "relative", overflow: "hidden" }), gridColumn: isMobile ? "1" : "1 / -1" }}>
               <div style={{ position: "absolute", top: -25, right: -25, width: 140, height: 140, borderRadius: "50%", background: `${G.accent}0A`, filter: "blur(30px)" }} />
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>My Wallet</div>
-              <div style={{ fontSize: isMobile ? 36 : 48, fontWeight: 700, letterSpacing: -2, color: walletBalance >= 0 ? G.green : G.red, marginBottom: 4 }}>₱{walletBalance.toLocaleString()}</div>
+              <div style={{ fontSize: isMobile ? 34 : 46, fontWeight: 700, letterSpacing: -2, color: walletBalance >= 0 ? G.green : G.red, marginBottom: 4 }}>{CUR}{walletBalance.toLocaleString()}</div>
               <div style={{ fontSize: 12, color: G.textMuted }}>Cash you personally keep track of</div>
             </div>
             <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Add entry</div>
               <MRow isMobile={isMobile}>
-                <Field G={G} label="Type">
-                  <select style={inputSt} value={walletType} onChange={e => setWalletType(e.target.value)}>
-                    <option value="add" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>+ Added money</option>
-                    <option value="spend" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>- Spent money</option>
-                  </select>
-                </Field>
-                <Field G={G} label="Amount (₱)"><input style={inputSt} type="number" placeholder="100" value={walletAmt} onChange={e => setWalletAmt(e.target.value)} /></Field>
+                <Field G={G} label="Type"><select style={inputSt} value={walletType} onChange={e => setWalletType(e.target.value)}><option value="add" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>+ Added money</option><option value="spend" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>- Spent money</option></select></Field>
+                <Field G={G} label={`Amount (${CUR})`}><input style={inputSt} type="number" placeholder="100" value={walletAmt} onChange={e => setWalletAmt(e.target.value)} /></Field>
               </MRow>
               <MRow isMobile={isMobile} style={{ marginTop: 12 }}>
                 <Field G={G} label="Description"><input style={inputSt} type="text" placeholder="e.g. Saved from lunch" value={walletDesc} onChange={e => setWalletDesc(e.target.value)} /></Field>
@@ -684,7 +846,7 @@ export default function App() {
                       <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 500 }}>{w.description}</div>
                       <div style={{ fontSize: 10, color: G.textMuted }}>{(d.getMonth()+1)}/{d.getDate()}/{d.getFullYear()}</div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: isAdd ? G.green : G.red, whiteSpace: "nowrap" }}>{isAdd ? "+" : "-"}₱{w.amount.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isAdd ? G.green : G.red, whiteSpace: "nowrap" }}>{isAdd ? "+" : "-"}{CUR}{w.amount.toLocaleString()}</div>
                     <button onClick={() => deleteWallet(w.id)} style={{ background: `${G.red}18`, border: `1px solid ${G.red}40`, color: G.red, borderRadius: 7, width: 28, height: 28, cursor: "pointer", fontSize: 14 }}>×</button>
                   </div>
                 );
@@ -709,7 +871,6 @@ export default function App() {
   );
 }
 
-// ── Helpers ──
 function MRow({ isMobile, children, style = {} }) {
   return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 12, ...style }}>{children}</div>;
 }
