@@ -41,9 +41,7 @@ function displayCategory(cat) {
   if (cat.startsWith("Other:")) return cat.slice(6).trim();
   return cat;
 }
-function getInitials(name) {
-  return name.slice(0, 2).toUpperCase();
-}
+function getInitials(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 function hashColor(str) {
   const palette = ["#C8A96E","#8B7FD4","#7BAF8E","#C47A6A","#6B9BBF","#B87FAE","#D4B878","#D4956A"];
   let hash = 0;
@@ -58,7 +56,6 @@ const dark = {
   accent: "#C8A96E", accentSoft: "rgba(200,169,110,0.12)",
   red: "#C47A6A", green: "#7BAF8E", yellow: "#D4B878", indigo: "#8B7FD4", cream: "#EDE8DC",
   inputBg: "rgba(200,190,255,0.04)", navBg: "rgba(10,8,20,0.88)", tooltipBg: "rgba(10,8,20,0.97)",
-  cardHover: "rgba(200,190,255,0.07)",
 };
 const light = {
   bg: "linear-gradient(160deg, #f5f0e8 0%, #ede5d5 45%, #f8f3ea 100%)",
@@ -67,13 +64,157 @@ const light = {
   accent: "#8B5E20", accentSoft: "rgba(139,94,32,0.1)",
   red: "#B85042", green: "#4A8C62", yellow: "#9A7A20", indigo: "#5B4FB5", cream: "#2C2416",
   inputBg: "rgba(255,250,240,0.85)", navBg: "rgba(240,230,210,0.93)", tooltipBg: "rgba(245,240,232,0.98)",
-  cardHover: "rgba(120,90,40,0.08)",
 };
 
 // ─────────────────────────────────────────────
-// PROFILE SELECTOR SCREEN
+// AUTH SCREEN (Login / Sign Up)
 // ─────────────────────────────────────────────
-function ProfileScreen({ onSelect, isDark, setIsDark }) {
+function AuthScreen({ isDark, setIsDark, onAuth }) {
+  const isMobile = useMobile();
+  const G = isDark ? dark : light;
+  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  const glassStyle = (extra = {}) => ({
+    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${G.glassBorder}`, borderRadius: 18, ...extra,
+  });
+
+  const inputSt = {
+    width: "100%", padding: "12px 14px", borderRadius: 11,
+    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
+    color: G.text, fontSize: 15, outline: "none",
+    fontFamily: "'EB Garamond', Georgia, serif", boxSizing: "border-box",
+  };
+
+  async function handleSubmit() {
+    setError(""); setMessage("");
+    if (!email.trim() || !password.trim()) return setError("Please fill in all fields.");
+    if (mode === "signup" && !displayName.trim()) return setError("Please enter a display name.");
+    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    setLoading(true);
+
+    if (mode === "signup") {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { display_name: displayName.trim() } },
+      });
+      if (err) { setError(err.message); setLoading(false); return; }
+      // Auto-create default profile for this user
+      if (data.user) {
+        await supabase.from("profiles").insert({
+          username: displayName.trim(),
+          currency: "₱",
+          owner_id: data.user.id,
+        });
+        setMessage("Account created! Check your email to confirm, then log in.");
+        setMode("login");
+      }
+    } else {
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (err) { setError(err.message); setLoading(false); return; }
+      if (data.user) onAuth(data.user);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "24px 16px" : "40px 24px", boxSizing: "border-box", transition: "background 0.3s, color 0.3s" }}>
+      {/* Blobs */}
+      <div style={{ position: "fixed", top: -80, left: -60, width: 300, height: 300, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.08)" : "rgba(139,94,32,0.06)", filter: "blur(90px)", pointerEvents: "none" }} />
+      <div style={{ position: "fixed", bottom: -60, right: -40, width: 260, height: 260, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.07)" : "rgba(200,169,110,0.09)", filter: "blur(80px)", pointerEvents: "none" }} />
+
+      {/* Theme toggle */}
+      <div style={{ position: "fixed", top: 20, right: 20, zIndex: 10 }}>
+        <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 420, position: "relative", zIndex: 1 }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Budget Tracker</div>
+          <div style={{ fontSize: isMobile ? 28 : 34, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 6 }}>
+            {mode === "login" ? "Welcome back" : "Create account"}
+          </div>
+          <div style={{ fontSize: 14, color: G.textMuted }}>
+            {mode === "login" ? "Sign in to your budget" : "Start tracking your budget"}
+          </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{ display: "flex", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 12, padding: 4, marginBottom: 24, border: `1px solid ${G.glassBorder}` }}>
+          {["login","signup"].map(m => (
+            <button key={m} onClick={() => { setMode(m); setError(""); setMessage(""); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: mode === m ? G.accentSoft : "transparent", color: mode === m ? G.accent : G.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>
+              {m === "login" ? "Log In" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+
+        {/* Form */}
+        <div style={glassStyle({ padding: "28px 24px" })}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {mode === "signup" && (
+              <div>
+                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Display Name</label>
+                <input style={inputSt} type="text" placeholder="e.g. Kieffer" value={displayName} onChange={e => { setDisplayName(e.target.value); setError(""); }} />
+                <div style={{ fontSize: 11, color: G.textMuted, marginTop: 4 }}>This is your personal label — not used for login</div>
+              </div>
+            )}
+
+            <div>
+              <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Email</label>
+              <input style={inputSt} type="email" placeholder="you@email.com" value={email} onChange={e => { setEmail(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Password</label>
+              <div style={{ position: "relative" }}>
+                <input style={{ ...inputSt, paddingRight: 44 }} type={showPass ? "text" : "password"} placeholder="Min. 6 characters" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+                <button onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: G.textMuted, cursor: "pointer", fontSize: 14, padding: 0 }}>
+                  {showPass ? "🙈" : "👁"}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ fontSize: 12, color: G.red, padding: "10px 14px", background: `${G.red}12`, borderRadius: 9, border: `1px solid ${G.red}25` }}>
+                ⚠ {error}
+              </div>
+            )}
+            {message && (
+              <div style={{ fontSize: 12, color: G.green, padding: "10px 14px", background: `${G.green}12`, borderRadius: 9, border: `1px solid ${G.green}25` }}>
+                ✓ {message}
+              </div>
+            )}
+
+            <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 12, background: G.accentSoft, border: `1px solid ${G.accent}50`, color: G.accent, fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "all 0.15s", marginTop: 4, opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Please wait..." : mode === "login" ? "Log In" : "Create Account"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: G.textMuted }}>
+          {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+          <span style={{ color: G.accent, cursor: "pointer", fontWeight: 600 }} onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setMessage(""); }}>
+            {mode === "login" ? "Sign up" : "Log in"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PROFILE SELECTOR (sub-profiles within account)
+// ─────────────────────────────────────────────
+function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
   const isMobile = useMobile();
   const G = isDark ? dark : light;
   const [profiles, setProfiles] = useState([]);
@@ -85,19 +226,23 @@ function ProfileScreen({ onSelect, isDark, setIsDark }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.from("profiles").select("*").order("created_at", { ascending: true })
+    supabase.from("profiles").select("*")
+      .eq("owner_id", authUser.id)
+      .order("created_at", { ascending: true })
       .then(({ data }) => { if (data) setProfiles(data); setLoading(false); });
-  }, []);
+  }, [authUser.id]);
 
   async function createProfile() {
-    if (!newUsername.trim()) return setError("Please enter a username.");
-    const username = newUsername.trim(); // case-sensitive, keep as-is
+    if (!newUsername.trim()) return setError("Please enter a name.");
+    const username = newUsername.trim();
     const exists = profiles.some(p => p.username === username);
-    if (exists) return setError(`"${username}" already exists. Usernames are case-sensitive.`);
+    if (exists) return setError(`"${username}" already exists.`);
     setSaving(true);
-    const { error: err } = await supabase.from("profiles").insert({ username, currency: newCurrency });
+    const { error: err } = await supabase.from("profiles").insert({
+      username, currency: newCurrency, owner_id: authUser.id,
+    });
     if (err) { setError("Error: " + err.message); setSaving(false); return; }
-    const newProfile = { username, currency: newCurrency };
+    const newProfile = { username, currency: newCurrency, owner_id: authUser.id };
     setProfiles(s => [...s, newProfile]);
     setCreating(false);
     setNewUsername(""); setNewCurrency("₱"); setError("");
@@ -119,44 +264,38 @@ function ProfileScreen({ onSelect, isDark, setIsDark }) {
 
   return (
     <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "24px 16px" : "40px 24px", boxSizing: "border-box", transition: "background 0.3s, color 0.3s" }}>
-      {/* Blobs */}
       <div style={{ position: "fixed", top: -80, left: -60, width: 300, height: 300, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.08)" : "rgba(139,94,32,0.06)", filter: "blur(90px)", pointerEvents: "none" }} />
       <div style={{ position: "fixed", bottom: -60, right: -40, width: 260, height: 260, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.07)" : "rgba(200,169,110,0.09)", filter: "blur(80px)", pointerEvents: "none" }} />
 
-      {/* Theme toggle top-right */}
-      <div style={{ position: "fixed", top: 20, right: 20 }}>
-        <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+      {/* Top bar */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px" }}>
+        <div style={{ fontSize: 11, color: G.textMuted }}>Logged in as <span style={{ color: G.accent }}>{authUser.email}</span></div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+          <button onClick={onSignOut} style={{ background: `${G.red}15`, border: `1px solid ${G.red}30`, color: G.red, fontSize: 12, padding: "6px 14px", borderRadius: 18, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Sign out</button>
+        </div>
       </div>
 
-      <div style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, position: "relative", zIndex: 1 }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
+      <div style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, position: "relative", zIndex: 1, marginTop: 40 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 10, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Budget Tracker</div>
-          <div style={{ fontSize: isMobile ? 28 : 34, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 8 }}>Who's budgeting?</div>
-          <div style={{ fontSize: 14, color: G.textMuted }}>Select a profile to continue</div>
+          <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 6 }}>Who's budgeting?</div>
+          <div style={{ fontSize: 13, color: G.textMuted }}>Your account — select or add a profile</div>
         </div>
 
-        {/* Profile cards */}
         {loading ? (
           <div style={{ textAlign: "center", color: G.textMuted, padding: "32px 0" }}>Loading profiles...</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
             {profiles.map(p => {
               const avatarColor = hashColor(p.username);
               return (
-                <button key={p.username} onClick={() => onSelect(p)} style={{
-                  display: "flex", alignItems: "center", gap: 14, padding: "16px 18px",
-                  background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-                  border: `1px solid ${G.glassBorder}`, borderRadius: 14,
-                  color: G.text, cursor: "pointer", fontFamily: "inherit",
-                  textAlign: "left", width: "100%", transition: "all 0.18s",
-                }}>
-                  {/* Avatar */}
-                  <div style={{ width: 46, height: 46, borderRadius: 13, background: `${avatarColor}25`, border: `2px solid ${avatarColor}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
+                <button key={p.username} onClick={() => onSelect(p)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 18px", background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: 14, color: G.text, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", transition: "all 0.18s" }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: `${avatarColor}25`, border: `2px solid ${avatarColor}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
                     {getInitials(p.username)}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{p.username}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{p.username}</div>
                     <div style={{ fontSize: 12, color: G.textMuted, marginTop: 2 }}>Currency: {p.currency}</div>
                   </div>
                   <div style={{ fontSize: 18, color: G.textMuted }}>→</div>
@@ -166,58 +305,30 @@ function ProfileScreen({ onSelect, isDark, setIsDark }) {
           </div>
         )}
 
-        {/* Create new profile */}
         {!creating ? (
-          <button onClick={() => setCreating(true)} style={{
-            width: "100%", padding: "14px", borderRadius: 14,
-            background: G.accentSoft, border: `1px solid ${G.accent}40`,
-            color: G.accent, fontSize: 15, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}>
-            <span style={{ fontSize: 20, lineHeight: 1 }}>+</span> New Profile
+          <button onClick={() => setCreating(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, background: G.accentSoft, border: `1px solid ${G.accent}40`, color: G.accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Add Profile
           </button>
         ) : (
           <div style={glassStyle({ padding: "22px" })}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: G.cream }}>Create Profile</div>
-
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: G.cream }}>New Profile</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
-                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Username</label>
-                <input
-                  style={inputSt}
-                  type="text"
-                  placeholder="e.g. Kieffer"
-                  value={newUsername}
-                  onChange={e => { setNewUsername(e.target.value); setError(""); }}
-                  autoFocus
-                  onKeyDown={e => e.key === "Enter" && createProfile()}
-                />
-                <div style={{ fontSize: 11, color: G.textMuted, marginTop: 5 }}>⚠ Case-sensitive — "Kieffer" and "kieffer" are different profiles</div>
+                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Name</label>
+                <input style={inputSt} type="text" placeholder="e.g. My Brother" value={newUsername} onChange={e => { setNewUsername(e.target.value); setError(""); }} autoFocus onKeyDown={e => e.key === "Enter" && createProfile()} />
               </div>
-
               <div>
                 <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Currency</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {CURRENCIES.map(c => (
-                    <button key={c} onClick={() => setNewCurrency(c)} style={{
-                      padding: "7px 14px", borderRadius: 9, fontSize: 14, fontWeight: 600,
-                      border: `1px solid ${newCurrency === c ? G.accent : G.glassBorder}`,
-                      background: newCurrency === c ? G.accentSoft : "transparent",
-                      color: newCurrency === c ? G.accent : G.textMuted,
-                      cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                    }}>{c}</button>
+                    <button key={c} onClick={() => setNewCurrency(c)} style={{ padding: "7px 13px", borderRadius: 9, fontSize: 14, fontWeight: 600, border: `1px solid ${newCurrency === c ? G.accent : G.glassBorder}`, background: newCurrency === c ? G.accentSoft : "transparent", color: newCurrency === c ? G.accent : G.textMuted, cursor: "pointer", fontFamily: "inherit" }}>{c}</button>
                   ))}
                 </div>
               </div>
-
               {error && <div style={{ fontSize: 12, color: G.red, padding: "8px 12px", background: `${G.red}12`, borderRadius: 8 }}>{error}</div>}
-
               <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                <button onClick={() => { setCreating(false); setNewUsername(""); setError(""); }} style={{ flex: 1, padding: "11px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                <button onClick={createProfile} disabled={saving} style={{ flex: 2, padding: "11px", borderRadius: 11, background: G.accentSoft, border: `1px solid ${G.accent}50`, color: G.accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                  {saving ? "Creating..." : "Create Profile"}
-                </button>
+                <button onClick={() => { setCreating(false); setNewUsername(""); setError(""); }} style={{ flex: 1, padding: "10px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button onClick={createProfile} disabled={saving} style={{ flex: 2, padding: "10px", borderRadius: 11, background: G.accentSoft, border: `1px solid ${G.accent}50`, color: G.accent, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "Saving..." : "Create"}</button>
               </div>
             </div>
           </div>
@@ -228,25 +339,24 @@ function ProfileScreen({ onSelect, isDark, setIsDark }) {
 }
 
 // ─────────────────────────────────────────────
-// MAIN APP
+// MAIN BUDGET APP
 // ─────────────────────────────────────────────
-export default function App() {
+function BudgetApp({ authUser, activeProfile, onSwitchProfile, onSignOut, isDark, setIsDark }) {
   const isMobile = useMobile();
-  const [isDark, setIsDark] = useState(true);
-  const [activeProfile, setActiveProfile] = useState(null); // { username, currency }
   const G = isDark ? dark : light;
+  const CUR = activeProfile?.currency || "₱";
+  const P = activeProfile?.username;
+  const OID = authUser.id;
 
-  // All data states
   const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
   const [wallet, setWallet] = useState([]);
   const [budgets, setBudgets] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [tab, setTab] = useState("overview");
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
 
-  // Forms
   const [incAmount, setIncAmount] = useState("");
   const [incDate, setIncDate] = useState(todayStr());
   const [incNote, setIncNote] = useState("");
@@ -272,32 +382,26 @@ export default function App() {
   const [budgetCustomName, setBudgetCustomName] = useState("");
   const [budgetAmt, setBudgetAmt] = useState("");
 
-  const CUR = activeProfile?.currency || "₱";
-
   useEffect(() => {
     document.documentElement.classList.toggle("light", !isDark);
   }, [isDark]);
 
-  // Load data whenever profile changes
   useEffect(() => {
     if (!activeProfile) return;
     async function loadAll() {
       setLoading(true);
-      const p = activeProfile.username;
       const [txRes, goalsRes, walletRes, budgetsRes] = await Promise.all([
-        supabase.from("transactions").select("*").eq("profile", p).order("date", { ascending: false }),
-        supabase.from("goals").select("*").eq("profile", p).order("created_at", { ascending: true }),
-        supabase.from("wallet").select("*").eq("profile", p).order("date", { ascending: false }),
-        supabase.from("budgets").select("*").eq("profile", p),
+        supabase.from("transactions").select("*").eq("owner_id", OID).eq("profile", P).order("date", { ascending: false }),
+        supabase.from("goals").select("*").eq("owner_id", OID).eq("profile", P).order("created_at", { ascending: true }),
+        supabase.from("wallet").select("*").eq("owner_id", OID).eq("profile", P).order("date", { ascending: false }),
+        supabase.from("budgets").select("*").eq("owner_id", OID).eq("profile", P),
       ]);
       if (txRes.data) setTransactions(txRes.data);
       if (goalsRes.data) setGoals(goalsRes.data);
       if (walletRes.data) setWallet(walletRes.data);
       if (budgetsRes.data) {
         const map = {};
-        budgetsRes.data.forEach(b => {
-          map[b.category] = { amount: b.amount, color: b.color || STD_COLORS[b.category] || "#8B7FD4", isCustom: b.is_custom || false };
-        });
+        budgetsRes.data.forEach(b => { map[b.category] = { amount: b.amount, color: b.color || STD_COLORS[b.category] || "#8B7FD4", isCustom: b.is_custom || false }; });
         setBudgets(map);
       }
       setLoading(false);
@@ -305,14 +409,8 @@ export default function App() {
     loadAll();
     setTab("overview");
     setSelectedMonth(currentMonthKey());
-  }, [activeProfile]);
+  }, [activeProfile, OID, P]);
 
-  function switchProfile() {
-    setActiveProfile(null);
-    setTransactions([]); setGoals([]); setWallet([]); setBudgets({});
-  }
-
-  // ── Derived ──
   const customCats = Object.entries(budgets).filter(([,v]) => v.isCustom).map(([k,v]) => ({ name: k, ...v }));
   const allExpenseCategories = [...STD_CATEGORIES, ...customCats.map(c => c.name), "Other"];
 
@@ -331,9 +429,7 @@ export default function App() {
 
   const catSpending = () => {
     const map = {};
-    txForMonth(selectedMonth).filter(t => t.type === "expense").forEach(t => {
-      map[t.category] = (map[t.category] || 0) + t.amount;
-    });
+    txForMonth(selectedMonth).filter(t => t.type === "expense").forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
     return map;
   };
 
@@ -341,22 +437,17 @@ export default function App() {
     const spending = catSpending();
     const rows = [];
     STD_CATEGORIES.forEach(cat => {
-      const b = budgets[cat];
-      const budget = b?.amount || 0;
-      const spent = spending[cat] || 0;
+      const b = budgets[cat]; const budget = b?.amount || 0; const spent = spending[cat] || 0;
       if (budget === 0 && spent === 0) return;
-      const remaining = budget - spent;
-      const p = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+      const remaining = budget - spent; const p = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
       rows.push({ cat, displayCat: cat, budget, spent, remaining, p, color: STD_COLORS[cat] || G.accent });
     });
     customCats.forEach(c => {
-      const budget = c.amount || 0;
-      const directSpent = spending[c.name] || 0;
+      const budget = c.amount || 0; const directSpent = spending[c.name] || 0;
       const otherKey = Object.keys(spending).find(k => k.startsWith("Other:") && k.slice(6).trim().toLowerCase() === c.name.toLowerCase());
       const spent = directSpent + (otherKey ? spending[otherKey] : 0);
       if (budget === 0 && spent === 0) return;
-      const remaining = budget - spent;
-      const p = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+      const remaining = budget - spent; const p = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
       rows.push({ cat: c.name, displayCat: c.name, budget, spent, remaining, p, color: c.color });
     });
     Object.keys(spending).filter(k => k.startsWith("Other:")).forEach(k => {
@@ -375,16 +466,12 @@ export default function App() {
 
   const walletBalance = wallet.reduce((s, w) => w.type === "add" ? s + w.amount : s - w.amount, 0);
 
-  // ── CRUD ──
-  const P = activeProfile?.username;
-
   async function addIncome() {
     if (!incAmount || !incDate) return alert("Enter amount and date.");
-    const tx = { id: uid(), type: "income", amount: parseFloat(incAmount), date: incDate, description: incNote || "Allowance", category: "Income", profile: P };
+    const tx = { id: uid(), type: "income", amount: parseFloat(incAmount), date: incDate, description: incNote || "Allowance", category: "Income", profile: P, owner_id: OID };
     const { error } = await supabase.from("transactions").insert(tx);
     if (error) return alert("Error: " + error.message);
-    setTransactions(s => [tx, ...s]);
-    setIncAmount(""); setIncNote("");
+    setTransactions(s => [tx, ...s]); setIncAmount(""); setIncNote("");
   }
 
   async function addExpense() {
@@ -392,102 +479,73 @@ export default function App() {
     if (expCat === "Other" && !expOtherLabel.trim()) return alert("Please specify what this expense is.");
     let category = expCat;
     if (expCat === "Other") {
-      const matchedCustom = customCats.find(c => c.name.toLowerCase() === expOtherLabel.trim().toLowerCase());
-      category = matchedCustom ? matchedCustom.name : `Other:${expOtherLabel.trim()}`;
+      const match = customCats.find(c => c.name.toLowerCase() === expOtherLabel.trim().toLowerCase());
+      category = match ? match.name : `Other:${expOtherLabel.trim()}`;
     }
-    const tx = { id: uid(), type: "expense", amount: parseFloat(expAmount), date: expDate, description: expDesc || displayCategory(category), category, profile: P };
+    const tx = { id: uid(), type: "expense", amount: parseFloat(expAmount), date: expDate, description: expDesc || displayCategory(category), category, profile: P, owner_id: OID };
     const { error } = await supabase.from("transactions").insert(tx);
     if (error) return alert("Error: " + error.message);
-    setTransactions(s => [tx, ...s]);
-    setExpAmount(""); setExpDesc(""); setExpOtherLabel("");
+    setTransactions(s => [tx, ...s]); setExpAmount(""); setExpDesc(""); setExpOtherLabel("");
   }
 
   async function saveBudget() {
     if (!budgetAmt) return alert("Enter a budget amount.");
     let catKey, isCustom, color;
-    if (budgetCatType === "standard") {
-      catKey = budgetStdCat; isCustom = false; color = STD_COLORS[budgetStdCat];
-    } else {
-      if (!budgetCustomName.trim()) return alert("Enter a category name.");
-      catKey = budgetCustomName.trim(); isCustom = true;
-      color = budgets[catKey]?.color || CUSTOM_PALETTE[customCats.length % CUSTOM_PALETTE.length];
-    }
-    const { error } = await supabase.from("budgets").upsert({ category: catKey, amount: parseFloat(budgetAmt), color, is_custom: isCustom, profile: P });
+    if (budgetCatType === "standard") { catKey = budgetStdCat; isCustom = false; color = STD_COLORS[budgetStdCat]; }
+    else { if (!budgetCustomName.trim()) return alert("Enter a category name."); catKey = budgetCustomName.trim(); isCustom = true; color = budgets[catKey]?.color || CUSTOM_PALETTE[customCats.length % CUSTOM_PALETTE.length]; }
+    const { error } = await supabase.from("budgets").upsert({ category: catKey, amount: parseFloat(budgetAmt), color, is_custom: isCustom, profile: P, owner_id: OID });
     if (error) return alert("Error: " + error.message);
     setBudgets(s => ({ ...s, [catKey]: { amount: parseFloat(budgetAmt), color, isCustom } }));
-    setBudgetAmt("");
-    if (budgetCatType === "custom") setBudgetCustomName("");
+    setBudgetAmt(""); if (budgetCatType === "custom") setBudgetCustomName("");
   }
 
   async function deleteBudget(catKey) {
-    const { error } = await supabase.from("budgets").delete().eq("category", catKey).eq("profile", P);
-    if (error) return alert("Error: " + error.message);
+    await supabase.from("budgets").delete().eq("category", catKey).eq("owner_id", OID).eq("profile", P);
     setBudgets(s => { const n = { ...s }; delete n[catKey]; return n; });
   }
 
   async function addGoal() {
     if (!goalName || !goalTarget) return alert("Enter goal name and target.");
-    const g = { id: uid(), name: goalName, target: parseFloat(goalTarget), saved: 0, profile: P };
+    const g = { id: uid(), name: goalName, target: parseFloat(goalTarget), saved: 0, profile: P, owner_id: OID };
     const { error } = await supabase.from("goals").insert(g);
     if (error) return alert("Error: " + error.message);
-    setGoals(s => [...s, g]);
-    setGoalName(""); setGoalTarget("");
+    setGoals(s => [...s, g]); setGoalName(""); setGoalTarget("");
   }
 
   async function addToGoal() {
     if (!goalAddId || !goalAddAmt) return alert("Select a goal and enter amount.");
     const goal = goals.find(g => g.id === goalAddId);
     const newSaved = Math.min(goal.target, goal.saved + parseFloat(goalAddAmt));
-    const { error } = await supabase.from("goals").update({ saved: newSaved }).eq("id", goalAddId);
-    if (error) return alert("Error: " + error.message);
-    setGoals(s => s.map(g => g.id === goalAddId ? { ...g, saved: newSaved } : g));
-    setGoalAddAmt("");
+    await supabase.from("goals").update({ saved: newSaved }).eq("id", goalAddId);
+    setGoals(s => s.map(g => g.id === goalAddId ? { ...g, saved: newSaved } : g)); setGoalAddAmt("");
   }
 
   async function addWallet() {
     if (!walletAmt || !walletDate) return alert("Enter amount and date.");
-    const entry = { id: uid(), type: walletType, amount: parseFloat(walletAmt), description: walletDesc || (walletType === "add" ? "Added money" : "Spent money"), date: walletDate, profile: P };
+    const entry = { id: uid(), type: walletType, amount: parseFloat(walletAmt), description: walletDesc || (walletType === "add" ? "Added money" : "Spent money"), date: walletDate, profile: P, owner_id: OID };
     const { error } = await supabase.from("wallet").insert(entry);
     if (error) return alert("Error: " + error.message);
-    setWallet(s => [entry, ...s]);
-    setWalletAmt(""); setWalletDesc("");
+    setWallet(s => [entry, ...s]); setWalletAmt(""); setWalletDesc("");
   }
 
   async function deleteTx(id) { await supabase.from("transactions").delete().eq("id", id); setTransactions(s => s.filter(t => t.id !== id)); }
   async function deleteGoal(id) { await supabase.from("goals").delete().eq("id", id); setGoals(s => s.filter(g => g.id !== id)); }
   async function deleteWallet(id) { await supabase.from("wallet").delete().eq("id", id); setWallet(s => s.filter(w => w.id !== id)); }
 
-  // ── Style helpers ──
-  const glassStyle = (extra = {}) => ({
-    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-    border: `1px solid ${G.glassBorder}`, borderRadius: isMobile ? 14 : 16, ...extra,
-  });
-
-  const inputSt = {
-    width: "100%", padding: isMobile ? "10px 12px" : "9px 12px", borderRadius: 10,
-    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
-    color: G.text, fontSize: isMobile ? 14 : 13, outline: "none",
-    fontFamily: "'EB Garamond', Georgia, serif",
-  };
-
+  const glassStyle = (extra = {}) => ({ background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: isMobile ? 14 : 16, ...extra });
+  const inputSt = { width: "100%", padding: isMobile ? "10px 12px" : "9px 12px", borderRadius: 10, border: `1px solid ${G.glassBorder}`, background: G.inputBg, color: G.text, fontSize: isMobile ? 14 : 13, outline: "none", fontFamily: "'EB Garamond', Georgia, serif" };
   const grid2 = { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 20, width: "100%" };
   const tabs = ["overview", "add", "expenses", "goals", "wallet"];
   const tabIcons = { overview: "⌂", add: "+", expenses: "≡", goals: "◎", wallet: "◇" };
-
-  // ── Show profile selector if no active profile ──
-  if (!activeProfile) {
-    return <ProfileScreen onSelect={setActiveProfile} isDark={isDark} setIsDark={setIsDark} />;
-  }
+  const avatarColor = hashColor(P || "");
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: G.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: G.textMuted, fontSize: 16, letterSpacing: 1, gap: 12 }}>
-      <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${G.glassBorder}`, borderTop: `2px solid ${G.accent}`, animation: "spin 0.8s linear infinite" }} />
+    <div style={{ minHeight: "100vh", background: G.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: G.textMuted, fontSize: 16, gap: 12 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `2px solid ${G.glassBorder}`, borderTop: `2px solid ${G.accent}`, animation: "spin 0.8s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      Loading {activeProfile.username}'s budget...
+      Loading {P}'s budget...
     </div>
   );
-
-  const avatarColor = hashColor(activeProfile.username);
 
   return (
     <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, overflowX: "hidden", transition: "background 0.3s, color 0.3s" }}>
@@ -496,21 +554,14 @@ export default function App() {
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", minHeight: "100vh", padding: isMobile ? "18px 16px 80px" : "24px 32px 90px", boxSizing: "border-box" }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isMobile ? 20 : 28, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Profile avatar + switch button */}
-            <button onClick={switchProfile} title="Switch Profile" style={{
-              display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 7px",
-              background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 28,
-              cursor: "pointer", color: G.text, fontFamily: "inherit", transition: "all 0.18s",
-            }}>
-              <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${avatarColor}25`, border: `2px solid ${avatarColor}60`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
-                {getInitials(activeProfile.username)}
-              </div>
+            <button onClick={onSwitchProfile} title="Switch Profile" style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 7px", background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 28, cursor: "pointer", color: G.text, fontFamily: "inherit", transition: "all 0.18s" }}>
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${avatarColor}25`, border: `2px solid ${avatarColor}60`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>{getInitials(P)}</div>
               <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{activeProfile.username}</div>
-                <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 0.5 }}>switch ↗</div>
+                <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2, color: G.text }}>{P}</div>
+                <div style={{ fontSize: 9, color: G.textMuted }}>switch ↗</div>
               </div>
             </button>
             <div>
@@ -519,17 +570,16 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12 }}>{isDark ? "🌙" : "☀️"}</span>
-              <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
-            </div>
+            <span style={{ fontSize: 12 }}>{isDark ? "🌙" : "☀️"}</span>
+            <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
             <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ ...inputSt, width: "auto", fontSize: 11, padding: "6px 10px", cursor: "pointer" }}>
               {allMonths().map(m => <option key={m} value={m} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{monthLabel(m)}</option>)}
             </select>
+            {!isMobile && <button onClick={onSignOut} style={{ background: `${G.red}15`, border: `1px solid ${G.red}30`, color: G.red, fontSize: 11, padding: "6px 12px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Sign out</button>}
           </div>
         </div>
 
-        {/* ── OVERVIEW ── */}
+        {/* OVERVIEW */}
         {tab === "overview" && (
           <div style={grid2}>
             <div style={{ ...glassStyle({ padding: isMobile ? "22px 18px" : "28px 26px", position: "relative", overflow: "hidden" }) }}>
@@ -537,11 +587,7 @@ export default function App() {
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Remaining Balance</div>
               <div style={{ fontSize: isMobile ? 36 : 50, fontWeight: 700, letterSpacing: -2, color: balColor, marginBottom: 18 }}>{CUR}{balance.toLocaleString()}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                {[
-                  { label: "Allowance", val: `${CUR}${income.toLocaleString()}`, color: G.green },
-                  { label: "Spent", val: `${CUR}${expenses.toLocaleString()}`, color: G.red },
-                  { label: "Used", val: `${pct}%`, color: G.yellow },
-                ].map(m => (
+                {[{ label: "Allowance", val: `${CUR}${income.toLocaleString()}`, color: G.green }, { label: "Spent", val: `${CUR}${expenses.toLocaleString()}`, color: G.red }, { label: "Used", val: `${pct}%`, color: G.yellow }].map(m => (
                   <div key={m.label} style={{ background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 10, padding: "10px 12px" }}>
                     <div style={{ fontSize: 9, color: G.textMuted, marginBottom: 3 }}>{m.label}</div>
                     <div style={{ fontSize: isMobile ? 13 : 16, fontWeight: 600, color: m.color }}>{m.val}</div>
@@ -568,30 +614,19 @@ export default function App() {
 
             <div style={glassStyle({ padding: isMobile ? "16px" : "20px 22px" })}>
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Category Breakdown</div>
-              {catBudgetData().length === 0 && (
-                <div style={{ textAlign: "center", color: G.textMuted, fontSize: 13, padding: "20px 0" }}>
-                  No data yet — <span style={{ color: G.accent, cursor: "pointer", textDecoration: "underline" }} onClick={() => setTab("add")}>add a transaction</span>
-                </div>
-              )}
+              {catBudgetData().length === 0 && <div style={{ textAlign: "center", color: G.textMuted, fontSize: 13, padding: "20px 0" }}>No data yet — <span style={{ color: G.accent, cursor: "pointer", textDecoration: "underline" }} onClick={() => setTab("add")}>add a transaction</span></div>}
               {catBudgetData().map(({ cat, displayCat, budget, spent, remaining, p, color }) => {
                 const over = budget > 0 && spent > budget;
                 return (
                   <div key={cat} style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, fontWeight: 500 }}>{displayCat}</span>
-                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} /><span style={{ fontSize: 13, fontWeight: 500 }}>{displayCat}</span></div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: 12, color: over ? G.red : G.textSub }}>{CUR}{spent.toLocaleString()}{budget > 0 && <span style={{ color: G.textMuted }}> / {CUR}{budget.toLocaleString()}</span>}</div>
                         {budget > 0 && <div style={{ fontSize: 10, color: over ? G.red : G.green, fontWeight: 600 }}>{over ? `−${CUR}${Math.abs(remaining).toLocaleString()} over` : `${CUR}${remaining.toLocaleString()} left`}</div>}
                       </div>
                     </div>
-                    {budget > 0 && (
-                      <div style={{ height: 3, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", borderRadius: 2 }}>
-                        <div style={{ height: 3, width: `${Math.min(100, p)}%`, borderRadius: 2, background: over ? G.red : color, transition: "width 0.5s ease" }} />
-                      </div>
-                    )}
+                    {budget > 0 && <div style={{ height: 3, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", borderRadius: 2 }}><div style={{ height: 3, width: `${Math.min(100, p)}%`, borderRadius: 2, background: over ? G.red : color, transition: "width 0.5s ease" }} /></div>}
                   </div>
                 );
               })}
@@ -610,10 +645,7 @@ export default function App() {
               </ResponsiveContainer>
               <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
                 {[[`${G.green}AA`,"Income"],[`${G.red}99`,"Expenses"]].map(([c,l]) => (
-                  <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
-                    <span style={{ fontSize: 11, color: G.textMuted }}>{l}</span>
-                  </div>
+                  <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 8, height: 8, borderRadius: 2, background: c }} /><span style={{ fontSize: 11, color: G.textMuted }}>{l}</span></div>
                 ))}
               </div>
             </div>
@@ -645,7 +677,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── ADD ── */}
+        {/* ADD */}
         {tab === "add" && (
           <div style={grid2}>
             <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
@@ -671,7 +703,7 @@ export default function App() {
               {expCat === "Other" && (
                 <div style={{ marginTop: 12 }}>
                   <Field G={G} label="✦ What is this expense?">
-                    <input style={{ ...inputSt, borderColor: G.accent, background: G.accentSoft }} type="text" placeholder="e.g. Haircut, Medicine, Gift..." value={expOtherLabel} onChange={e => setExpOtherLabel(e.target.value)} autoFocus />
+                    <input style={{ ...inputSt, borderColor: G.accent, background: G.accentSoft }} type="text" placeholder="e.g. Haircut, Medicine..." value={expOtherLabel} onChange={e => setExpOtherLabel(e.target.value)} autoFocus />
                   </Field>
                   {expOtherLabel && customCats.some(c => c.name.toLowerCase() === expOtherLabel.trim().toLowerCase()) && (
                     <div style={{ marginTop: 5, fontSize: 11, color: G.green }}>✓ Matches your "{expOtherLabel.trim()}" budget</div>
@@ -698,7 +730,7 @@ export default function App() {
                 <Field G={G} label={budgetCatType === "standard" ? "Category" : "Category Name"}>
                   {budgetCatType === "standard"
                     ? <select style={inputSt} value={budgetStdCat} onChange={e => setBudgetStdCat(e.target.value)}>{STD_CATEGORIES.map(c => <option key={c} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{c}</option>)}</select>
-                    : <input style={inputSt} type="text" placeholder="e.g. Bills, Rent, Gym..." value={budgetCustomName} onChange={e => setBudgetCustomName(e.target.value)} />
+                    : <input style={inputSt} type="text" placeholder="e.g. Bills, Rent..." value={budgetCustomName} onChange={e => setBudgetCustomName(e.target.value)} />
                   }
                 </Field>
                 <Field G={G} label={`Monthly limit (${CUR})`}><input style={inputSt} type="number" placeholder="500" value={budgetAmt} onChange={e => setBudgetAmt(e.target.value)} /></Field>
@@ -737,7 +769,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── EXPENSES ── */}
+        {/* EXPENSES */}
         {tab === "expenses" && (
           <div style={{ ...glassStyle({ padding: isMobile ? "16px" : "24px" }), width: "100%" }}>
             <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16 }}>Transactions — {monthLabel(selectedMonth)}</div>
@@ -763,12 +795,12 @@ export default function App() {
           </div>
         )}
 
-        {/* ── GOALS ── */}
+        {/* GOALS */}
         {tab === "goals" && (
           <div style={grid2}>
             <div style={{ ...glassStyle({ padding: isMobile ? "16px" : "24px" }), gridColumn: isMobile ? "1" : "1 / -1" }}>
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Savings Goals</div>
-              {goals.length === 0 && <div style={{ textAlign: "center", color: G.textMuted, padding: "20px 0", fontSize: 14 }}>No goals yet. Add one below!</div>}
+              {goals.length === 0 && <div style={{ textAlign: "center", color: G.textMuted, padding: "20px 0", fontSize: 14 }}>No goals yet!</div>}
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
                 {goals.map(g => {
                   const p = Math.min(100, Math.round((g.saved / g.target) * 100));
@@ -812,7 +844,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── WALLET ── */}
+        {/* WALLET */}
         {tab === "wallet" && (
           <div style={grid2}>
             <div style={{ ...glassStyle({ padding: isMobile ? "22px 18px" : "28px 26px", position: "relative", overflow: "hidden" }), gridColumn: isMobile ? "1" : "1 / -1" }}>
@@ -824,7 +856,7 @@ export default function App() {
             <div style={glassStyle({ padding: isMobile ? "18px" : "24px" })}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Add entry</div>
               <MRow isMobile={isMobile}>
-                <Field G={G} label="Type"><select style={inputSt} value={walletType} onChange={e => setWalletType(e.target.value)}><option value="add" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>+ Added money</option><option value="spend" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>- Spent money</option></select></Field>
+                <Field G={G} label="Type"><select style={inputSt} value={walletType} onChange={e => setWalletType(e.target.value)}><option value="add" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>+ Added</option><option value="spend" style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>- Spent</option></select></Field>
                 <Field G={G} label={`Amount (${CUR})`}><input style={inputSt} type="number" placeholder="100" value={walletAmt} onChange={e => setWalletAmt(e.target.value)} /></Field>
               </MRow>
               <MRow isMobile={isMobile} style={{ marginTop: 12 }}>
@@ -837,8 +869,7 @@ export default function App() {
               <div style={{ fontSize: 9, color: G.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>History</div>
               {wallet.length === 0 && <div style={{ textAlign: "center", color: G.textMuted, padding: "20px 0", fontSize: 14 }}>No entries yet</div>}
               {[...wallet].sort((a,b) => new Date(b.date) - new Date(a.date)).map(w => {
-                const isAdd = w.type === "add";
-                const d = new Date(w.date);
+                const isAdd = w.type === "add"; const d = new Date(w.date);
                 return (
                   <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${G.glassBorder}` }}>
                     <div style={{ width: 34, height: 34, borderRadius: 9, background: isAdd ? `${G.green}18` : `${G.red}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: isAdd ? G.green : G.red, flexShrink: 0 }}>{isAdd ? "↑" : "↓"}</div>
@@ -856,7 +887,7 @@ export default function App() {
         )}
       </div>
 
-      {/* ── Bottom nav ── */}
+      {/* Bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 10, padding: isMobile ? "0 12px 12px" : "0 32px 18px" }}>
         <div style={{ background: G.navBg, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: `1px solid ${G.glassBorder}`, padding: isMobile ? "6px 8px" : "8px 12px", display: "flex", gap: isMobile ? 2 : 4, borderRadius: isMobile ? 22 : 28, width: "100%", boxShadow: `0 8px 40px ${isDark ? "rgba(0,0,0,0.6)" : "rgba(80,50,10,0.12)"}` }}>
           {tabs.map(t => (
@@ -871,27 +902,56 @@ export default function App() {
   );
 }
 
+// ─────────────────────────────────────────────
+// ROOT — orchestrates auth → profile → app
+// ─────────────────────────────────────────────
+export default function App() {
+  const [isDark, setIsDark] = useState(true);
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [activeProfile, setActiveProfile] = useState(null);
+
+  useEffect(() => {
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+      if (!session) setActiveProfile(null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setAuthUser(null);
+    setActiveProfile(null);
+  }
+
+  if (authLoading) return (
+    <div style={{ minHeight: "100vh", background: dark.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: dark.textMuted, fontSize: 16 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `2px solid rgba(200,190,255,0.1)`, borderTop: `2px solid #C8A96E`, animation: "spin 0.8s linear infinite" }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  if (!authUser) return <AuthScreen isDark={isDark} setIsDark={setIsDark} onAuth={setAuthUser} />;
+  if (!activeProfile) return <ProfileScreen authUser={authUser} isDark={isDark} setIsDark={setIsDark} onSelect={setActiveProfile} onSignOut={handleSignOut} />;
+  return <BudgetApp authUser={authUser} activeProfile={activeProfile} onSwitchProfile={() => setActiveProfile(null)} onSignOut={handleSignOut} isDark={isDark} setIsDark={setIsDark} />;
+}
+
 function MRow({ isMobile, children, style = {} }) {
   return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 12, ...style }}>{children}</div>;
 }
 function Field({ G, label, children }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 0.5 }}>{label}</label>
-      {children}
-    </div>
-  );
+  return <div style={{ display: "flex", flexDirection: "column", gap: 5 }}><label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 0.5 }}>{label}</label>{children}</div>;
 }
 function SectionTitle({ G, icon, iconBg, iconColor, title }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-      <div style={{ width: 30, height: 30, borderRadius: 9, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: iconColor }}>{icon}</div>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-    </div>
-  );
+  return <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}><div style={{ width: 30, height: 30, borderRadius: 9, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: iconColor }}>{icon}</div><div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div></div>;
 }
 function Btn({ G, onClick, children, style = {} }) {
-  return (
-    <button onClick={onClick} style={{ width: "100%", padding: "11px", borderRadius: 12, background: G.accentSoft, border: `1px solid ${G.accent}40`, color: G.accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'EB Garamond', Georgia, serif", transition: "all 0.15s", ...style }}>{children}</button>
-  );
+  return <button onClick={onClick} style={{ width: "100%", padding: "11px", borderRadius: 12, background: G.accentSoft, border: `1px solid ${G.accent}40`, color: G.accent, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'EB Garamond', Georgia, serif", transition: "all 0.15s", ...style }}>{children}</button>;
 }
