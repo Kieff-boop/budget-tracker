@@ -74,41 +74,34 @@ function AuthScreen({ isDark, setIsDark, onAuth }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [showPass, setShowPass] = useState(false);
 
-  useEffect(() => { document.documentElement.classList.toggle("light", !isDark); }, [isDark]);
-
-  const glassStyle = (extra = {}) => ({ background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: 18, ...extra });
-  const inputSt = { width: "100%", padding: "12px 14px", borderRadius: 11, border: `1px solid ${G.glassBorder}`, background: G.inputBg, color: G.text, fontSize: 15, outline: "none", fontFamily: "'EB Garamond', Georgia, serif", boxSizing: "border-box" };
+  const glassStyle = (extra = {}) => ({
+    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${G.glassBorder}`, borderRadius: 18, ...extra,
+  });
+  const inputSt = {
+    width: "100%", padding: "12px 14px", borderRadius: 11,
+    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
+    color: G.text, fontSize: 15, outline: "none",
+    fontFamily: "'EB Garamond', Georgia, serif", boxSizing: "border-box",
+  };
 
   async function handleSubmit() {
     setError(""); setMessage("");
     if (!email.trim() || !password.trim()) return setError("Please fill in all fields.");
-    if (mode === "signup" && !displayName.trim()) return setError("Please enter a display name.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
     setLoading(true);
-
     if (mode === "signup") {
-      const { data, error: err } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { display_name: displayName.trim() } },
-      });
+      // Sign up WITHOUT auto-creating a profile — user does that on the profile screen
+      const { data, error: err } = await supabase.auth.signUp({ email: email.trim(), password });
       if (err) { setError(err.message); setLoading(false); return; }
       if (data.user) {
-        // ── FIX: use upsert instead of insert to avoid duplicate key error ──
-        await supabase.from("profiles").upsert({
-          username: displayName.trim(),
-          currency: "₱",
-          owner_id: data.user.id,
-        }, { onConflict: "username,owner_id" });
-        setMessage("Account created! Check your email to confirm, then log in.");
+        setMessage("Account created! You can now log in.");
         setMode("login");
-        setEmail(""); setPassword(""); setDisplayName("");
       }
     } else {
       const { data, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -123,18 +116,20 @@ function AuthScreen({ isDark, setIsDark, onAuth }) {
       <div style={{ position: "fixed", top: -80, left: -60, width: 300, height: 300, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.08)" : "rgba(139,94,32,0.06)", filter: "blur(90px)", pointerEvents: "none" }} />
       <div style={{ position: "fixed", bottom: -60, right: -40, width: 260, height: 260, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.07)" : "rgba(200,169,110,0.09)", filter: "blur(80px)", pointerEvents: "none" }} />
       <div style={{ position: "fixed", top: 20, right: 20, zIndex: 10 }}>
-        <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+        <button onClick={() => setIsDark(d => !d)} style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: isDark ? "rgba(139,127,212,0.4)" : "rgba(139,94,32,0.3)", position: "relative" }}>
+          <div style={{ position: "absolute", top: 3, left: isDark ? 3 : 19, width: 16, height: 16, borderRadius: "50%", background: isDark ? "#8B7FD4" : "#8B5E20", transition: "left 0.2s" }} />
+        </button>
       </div>
-
       <div style={{ width: "100%", maxWidth: 420, position: "relative", zIndex: 1 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 10, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Budget Tracker</div>
           <div style={{ fontSize: isMobile ? 28 : 34, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 6 }}>
             {mode === "login" ? "Welcome back" : "Create account"}
           </div>
-          <div style={{ fontSize: 14, color: G.textMuted }}>{mode === "login" ? "Sign in to your budget" : "Start tracking your budget"}</div>
+          <div style={{ fontSize: 14, color: G.textMuted }}>
+            {mode === "login" ? "Sign in to your budget" : "Start tracking your budget"}
+          </div>
         </div>
-
         <div style={{ display: "flex", background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)", borderRadius: 12, padding: 4, marginBottom: 24, border: `1px solid ${G.glassBorder}` }}>
           {["login","signup"].map(m => (
             <button key={m} onClick={() => { setMode(m); setError(""); setMessage(""); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: mode === m ? G.accentSoft : "transparent", color: mode === m ? G.accent : G.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>
@@ -142,16 +137,8 @@ function AuthScreen({ isDark, setIsDark, onAuth }) {
             </button>
           ))}
         </div>
-
         <div style={glassStyle({ padding: "28px 24px" })}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {mode === "signup" && (
-              <div>
-                <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Display Name</label>
-                <input style={inputSt} type="text" placeholder="e.g. Kieffer" value={displayName} onChange={e => { setDisplayName(e.target.value); setError(""); }} />
-                <div style={{ fontSize: 11, color: G.textMuted, marginTop: 4 }}>This is your personal label, not used for login</div>
-              </div>
-            )}
             <div>
               <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Email</label>
               <input style={inputSt} type="email" placeholder="you@email.com" value={email} onChange={e => { setEmail(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
@@ -160,7 +147,9 @@ function AuthScreen({ isDark, setIsDark, onAuth }) {
               <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Password</label>
               <div style={{ position: "relative" }}>
                 <input style={{ ...inputSt, paddingRight: 44 }} type={showPass ? "text" : "password"} placeholder="Min. 6 characters" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-                <button onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: G.textMuted, cursor: "pointer", fontSize: 14, padding: 0 }}>{showPass ? "🙈" : "👁"}</button>
+                <button onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: G.textMuted, cursor: "pointer", fontSize: 14, padding: 0 }}>
+                  {showPass ? "🙈" : "👁"}
+                </button>
               </div>
             </div>
             {error && <div style={{ fontSize: 12, color: G.red, padding: "10px 14px", background: `${G.red}12`, borderRadius: 9, border: `1px solid ${G.red}25` }}>⚠ {error}</div>}
@@ -170,7 +159,6 @@ function AuthScreen({ isDark, setIsDark, onAuth }) {
             </button>
           </div>
         </div>
-
         <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: G.textMuted }}>
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
           <span style={{ color: G.accent, cursor: "pointer", fontWeight: 600 }} onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setMessage(""); }}>
@@ -195,34 +183,27 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
   const [newCurrency, setNewCurrency] = useState("₱");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null); // username to delete
-  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // profile username to confirm delete
 
   useEffect(() => {
-    loadProfiles();
+    supabase.from("profiles").select("*")
+      .eq("owner_id", authUser.id)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => { if (data) setProfiles(data); setLoading(false); });
   }, [authUser.id]);
-
-  async function loadProfiles() {
-    setLoading(true);
-    const { data } = await supabase.from("profiles").select("*").eq("owner_id", authUser.id).order("created_at", { ascending: true });
-    if (data) setProfiles(data);
-    setLoading(false);
-  }
 
   async function createProfile() {
     if (!newUsername.trim()) return setError("Please enter a name.");
     const username = newUsername.trim();
-    const exists = profiles.some(p => p.username === username);
-    if (exists) return setError(`"${username}" already exists on this account.`);
+    const exists = profiles.some(p => p.username.toLowerCase() === username.toLowerCase());
+    if (exists) return setError(`"${username}" already exists.`);
     setSaving(true);
-
-    // ── FIX: use upsert with owner_id+username uniqueness ──
-    const { error: err } = await supabase.from("profiles").upsert(
-      { username, currency: newCurrency, owner_id: authUser.id },
-      { onConflict: "username,owner_id" }
-    );
+    // Use insert (not upsert) to avoid constraint issues
+    const { data, error: err } = await supabase.from("profiles").insert({
+      username, currency: newCurrency, owner_id: authUser.id,
+    }).select().single();
     if (err) { setError("Error: " + err.message); setSaving(false); return; }
-    const newProfile = { username, currency: newCurrency, owner_id: authUser.id };
+    const newProfile = data || { username, currency: newCurrency, owner_id: authUser.id };
     setProfiles(s => [...s, newProfile]);
     setCreating(false);
     setNewUsername(""); setNewCurrency("₱"); setError("");
@@ -231,61 +212,67 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
   }
 
   async function deleteProfile(username) {
-    setDeleting(true);
-    // Delete all data for this profile
+    // Delete all data associated with this profile first
+    const oid = authUser.id;
     await Promise.all([
-      supabase.from("transactions").delete().eq("owner_id", authUser.id).eq("profile", username),
-      supabase.from("goals").delete().eq("owner_id", authUser.id).eq("profile", username),
-      supabase.from("wallet").delete().eq("owner_id", authUser.id).eq("profile", username),
-      supabase.from("budgets").delete().eq("owner_id", authUser.id).eq("profile", username),
-      supabase.from("profiles").delete().eq("owner_id", authUser.id).eq("username", username),
+      supabase.from("transactions").delete().eq("owner_id", oid).eq("profile", username),
+      supabase.from("goals").delete().eq("owner_id", oid).eq("profile", username),
+      supabase.from("wallet").delete().eq("owner_id", oid).eq("profile", username),
+      supabase.from("budgets").delete().eq("owner_id", oid).eq("profile", username),
     ]);
+    // Then delete the profile itself
+    await supabase.from("profiles").delete().eq("owner_id", oid).eq("username", username);
     setProfiles(s => s.filter(p => p.username !== username));
     setConfirmDelete(null);
-    setDeleting(false);
   }
 
-  const glassStyle = (extra = {}) => ({ background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: 16, ...extra });
-  const inputSt = { width: "100%", padding: "11px 14px", borderRadius: 11, border: `1px solid ${G.glassBorder}`, background: G.inputBg, color: G.text, fontSize: 15, outline: "none", fontFamily: "'EB Garamond', Georgia, serif" };
+  const glassStyle = (extra = {}) => ({
+    background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    border: `1px solid ${G.glassBorder}`, borderRadius: 16, ...extra,
+  });
+  const inputSt = {
+    width: "100%", padding: "11px 14px", borderRadius: 11,
+    border: `1px solid ${G.glassBorder}`, background: G.inputBg,
+    color: G.text, fontSize: 15, outline: "none",
+    fontFamily: "'EB Garamond', Georgia, serif",
+  };
 
   return (
     <div style={{ minHeight: "100vh", width: "100vw", background: G.bg, fontFamily: "'EB Garamond', Georgia, serif", color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "24px 16px" : "40px 24px", boxSizing: "border-box", transition: "background 0.3s, color 0.3s" }}>
       <div style={{ position: "fixed", top: -80, left: -60, width: 300, height: 300, borderRadius: "50%", background: isDark ? "rgba(139,127,212,0.08)" : "rgba(139,94,32,0.06)", filter: "blur(90px)", pointerEvents: "none" }} />
       <div style={{ position: "fixed", bottom: -60, right: -40, width: 260, height: 260, borderRadius: "50%", background: isDark ? "rgba(200,169,110,0.07)" : "rgba(200,169,110,0.09)", filter: "blur(80px)", pointerEvents: "none" }} />
 
-      {/* Top bar */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px" }}>
         <div style={{ fontSize: 11, color: G.textMuted }}>Logged in as <span style={{ color: G.accent }}>{authUser.email}</span></div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+          <button onClick={() => setIsDark(d => !d)} style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: isDark ? "rgba(139,127,212,0.4)" : "rgba(139,94,32,0.3)", position: "relative" }}>
+            <div style={{ position: "absolute", top: 3, left: isDark ? 3 : 19, width: 16, height: 16, borderRadius: "50%", background: isDark ? "#8B7FD4" : "#8B5E20", transition: "left 0.2s" }} />
+          </button>
           <button onClick={onSignOut} style={{ background: `${G.red}15`, border: `1px solid ${G.red}30`, color: G.red, fontSize: 12, padding: "6px 14px", borderRadius: 18, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Sign out</button>
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
+      {/* Confirm Delete Modal */}
       {confirmDelete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
-          <div style={{ ...glassStyle({ padding: "28px 24px" }), width: "100%", maxWidth: 360, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: G.cream, marginBottom: 8 }}>Delete "{confirmDelete}"?</div>
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ ...glassStyle({ padding: "28px 24px" }), maxWidth: 360, width: "100%", background: isDark ? "rgba(20,12,30,0.97)" : "rgba(245,240,232,0.97)" }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, color: G.cream }}>Delete "{confirmDelete}"?</div>
             <div style={{ fontSize: 13, color: G.textMuted, marginBottom: 22, lineHeight: 1.6 }}>
-              This will permanently delete this profile and <span style={{ color: G.red }}>all its transactions, goals, wallet entries, and budgets.</span> This cannot be undone.
+              This will permanently delete this profile and <strong style={{ color: G.red }}>all its transactions, goals, wallet entries, and budgets</strong>. This cannot be undone.
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "11px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button onClick={() => deleteProfile(confirmDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 11, background: `${G.red}20`, border: `1px solid ${G.red}50`, color: G.red, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                {deleting ? "Deleting..." : "Yes, Delete"}
-              </button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "11px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={() => deleteProfile(confirmDelete)} style={{ flex: 1, padding: "11px", borderRadius: 11, background: `${G.red}18`, border: `1px solid ${G.red}40`, color: G.red, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Delete Profile</button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, position: "relative", zIndex: 1, marginTop: 50 }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
+      <div style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, position: "relative", zIndex: 1, marginTop: 40 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 10, letterSpacing: 3, color: G.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Budget Tracker</div>
           <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 700, color: G.cream, letterSpacing: -1, marginBottom: 6 }}>Who's budgeting?</div>
-          <div style={{ fontSize: 13, color: G.textMuted }}>Select a profile to continue</div>
+          <div style={{ fontSize: 13, color: G.textMuted }}>Your account — select or add a profile</div>
         </div>
 
         {loading ? (
@@ -295,24 +282,20 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
             {profiles.map(p => {
               const avatarColor = hashColor(p.username);
               return (
-                <div key={p.username} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {/* Profile select button */}
-                  <button onClick={() => onSelect(p)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: 14, color: G.text, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.18s" }}>
-                    <div style={{ width: 42, height: 42, borderRadius: 12, background: `${avatarColor}25`, border: `2px solid ${avatarColor}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
+                <div key={p.username} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", background: G.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${G.glassBorder}`, borderRadius: 14 }}>
+                  {/* Clickable profile area */}
+                  <button onClick={() => onSelect(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "transparent", border: "none", cursor: "pointer", color: G.text, fontFamily: "inherit", textAlign: "left", padding: 0 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: `${avatarColor}25`, border: `2px solid ${avatarColor}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: avatarColor, flexShrink: 0 }}>
                       {getInitials(p.username)}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 600 }}>{p.username}</div>
                       <div style={{ fontSize: 12, color: G.textMuted, marginTop: 2 }}>Currency: {p.currency}</div>
                     </div>
-                    <div style={{ fontSize: 16, color: G.textMuted }}>→</div>
+                    <div style={{ fontSize: 18, color: G.textMuted }}>→</div>
                   </button>
-                  {/* Delete profile button */}
-                  <button
-                    onClick={() => setConfirmDelete(p.username)}
-                    title="Delete profile"
-                    style={{ width: 42, height: 42, borderRadius: 12, background: `${G.red}12`, border: `1px solid ${G.red}30`, color: G.red, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}
-                  >🗑</button>
+                  {/* Delete button */}
+                  <button onClick={() => setConfirmDelete(p.username)} title="Delete profile" style={{ width: 32, height: 32, borderRadius: 9, background: `${G.red}12`, border: `1px solid ${G.red}30`, color: G.red, cursor: "pointer", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
                 </div>
               );
             })}
@@ -329,7 +312,7 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Name</label>
-                <input style={inputSt} type="text" placeholder="e.g. My Brother" value={newUsername} onChange={e => { setNewUsername(e.target.value); setError(""); }} autoFocus onKeyDown={e => e.key === "Enter" && createProfile()} />
+                <input style={inputSt} type="text" placeholder="e.g. Kieffer" value={newUsername} onChange={e => { setNewUsername(e.target.value); setError(""); }} autoFocus onKeyDown={e => e.key === "Enter" && createProfile()} />
               </div>
               <div>
                 <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Currency</label>
@@ -339,7 +322,7 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
                   ))}
                 </div>
               </div>
-              {error && <div style={{ fontSize: 12, color: G.red, padding: "8px 12px", background: `${G.red}12`, borderRadius: 8 }}>⚠ {error}</div>}
+              {error && <div style={{ fontSize: 12, color: G.red, padding: "8px 12px", background: `${G.red}12`, borderRadius: 8 }}>{error}</div>}
               <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                 <button onClick={() => { setCreating(false); setNewUsername(""); setError(""); }} style={{ flex: 1, padding: "10px", borderRadius: 11, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
                 <button onClick={createProfile} disabled={saving} style={{ flex: 2, padding: "10px", borderRadius: 11, background: G.accentSoft, border: `1px solid ${G.accent}50`, color: G.accent, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "Saving..." : "Create"}</button>
@@ -396,7 +379,9 @@ function BudgetApp({ authUser, activeProfile, onSwitchProfile, onSignOut, isDark
   const [budgetCustomName, setBudgetCustomName] = useState("");
   const [budgetAmt, setBudgetAmt] = useState("");
 
-  useEffect(() => { document.documentElement.classList.toggle("light", !isDark); }, [isDark]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", !isDark);
+  }, [isDark]);
 
   useEffect(() => {
     if (!activeProfile) return;
@@ -583,7 +568,9 @@ function BudgetApp({ authUser, activeProfile, onSwitchProfile, onSignOut, isDark
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 12 }}>{isDark ? "🌙" : "☀️"}</span>
-            <button className="theme-toggle" onClick={() => setIsDark(d => !d)} style={{ background: isDark ? "rgba(139,127,212,0.25)" : "rgba(139,94,32,0.2)" }} />
+            <button onClick={() => setIsDark(d => !d)} style={{ width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", background: isDark ? "rgba(139,127,212,0.4)" : "rgba(139,94,32,0.3)", position: "relative" }}>
+              <div style={{ position: "absolute", top: 3, left: isDark ? 3 : 19, width: 16, height: 16, borderRadius: "50%", background: isDark ? "#8B7FD4" : "#8B5E20", transition: "left 0.2s" }} />
+            </button>
             <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} style={{ ...inputSt, width: "auto", fontSize: 11, padding: "6px 10px", cursor: "pointer" }}>
               {allMonths().map(m => <option key={m} value={m} style={{ background: isDark ? "#0f0f1a" : "#f5f0e8" }}>{monthLabel(m)}</option>)}
             </select>
@@ -942,8 +929,8 @@ export default function App() {
   }
 
   if (authLoading) return (
-    <div style={{ minHeight: "100vh", background: dark.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 36, height: 36, borderRadius: "50%", border: "2px solid rgba(200,190,255,0.1)", borderTop: "2px solid #C8A96E", animation: "spin 0.8s linear infinite" }} />
+    <div style={{ minHeight: "100vh", background: dark.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'EB Garamond', Georgia, serif", color: dark.textMuted, fontSize: 16 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `2px solid rgba(200,190,255,0.1)`, borderTop: `2px solid #C8A96E`, animation: "spin 0.8s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
