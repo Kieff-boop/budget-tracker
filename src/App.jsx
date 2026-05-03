@@ -312,7 +312,7 @@ function ProfileScreen({ authUser, isDark, setIsDark, onSelect, onSignOut }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Name</label>
-                <input style={inputSt} type="text" placeholder="e.g. Kieffer" value={newUsername} onChange={e => { setNewUsername(e.target.value); setError(""); }} autoFocus onKeyDown={e => e.key === "Enter" && createProfile()} />
+                <input style={inputSt} type="text" placeholder="e.g. Alex" value={newUsername} onChange={e => { setNewUsername(e.target.value); setError(""); }} autoFocus onKeyDown={e => e.key === "Enter" && createProfile()} />
               </div>
               <div>
                 <label style={{ fontSize: 10, color: G.textMuted, letterSpacing: 1, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Currency</label>
